@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background: #050507;
+  color: #ffffff;
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #46464d;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #62626c;
+}
+
+/* Gradient text */
+.gradient-text-fire {
+  background: linear-gradient(135deg, #ff3131 0%, #ff8a8a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-ice {
+  background: linear-gradient(135deg, #00d4ff 0%, #99f6ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-gold {
+  background: linear-gradient(135deg, #ffd700 0%, #ffef66 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glowing effects */
+.glow-fire {
+  box-shadow: 0 0 20px rgba(255, 49, 49, 0.5), 0 0 40px rgba(255, 49, 49, 0.3);
+}
+
+.glow-ice {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.5), 0 0 40px rgba(0, 212, 255, 0.3);
+}
+
+.glow-gold {
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5), 0 0 40px rgba(255, 215, 0, 0.3);
+}
+
+/* Button styles */
+.btn-fire {
+  @apply bg-gradient-to-r from-fire-500 to-fire-600 hover:from-fire-600 hover:to-fire-700 text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 active:scale-95;
+}
+
+.btn-ice {
+  @apply bg-gradient-to-r from-ice-500 to-ice-600 hover:from-ice-600 hover:to-ice-700 text-dark-900 font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 active:scale-95;
+}
+
+.btn-gold {
+  @apply bg-gradient-to-r from-gold-500 to-gold-600 hover:from-gold-600 hover:to-gold-700 text-dark-900 font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 active:scale-95;
+}
+
+.btn-dark {
+  @apply bg-dark-700 hover:bg-dark-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 border border-dark-600 hover:border-dark-500;
+}
+
+/* Card styles */
+.card {
+  @apply bg-dark-800 rounded-2xl border border-dark-700 p-6;
+}
+
+.card-hover {
+  @apply card hover:border-dark-600 transition-all duration-200 cursor-pointer hover:transform hover:scale-[1.02];
+}
+
+/* Input styles */
+.input {
+  @apply w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-dark-400 focus:outline-none focus:border-fire-500 focus:ring-1 focus:ring-fire-500 transition-all duration-200;
+}
+
+/* Pulse animation for recording */
+@keyframes recording-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+}
+
+.recording-pulse {
+  animation: recording-pulse 1s ease-in-out infinite;
+}
+
+/* VS animation */
+@keyframes vs-glow {
+  0%, 100% {
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+  }
+  50% {
+    text-shadow: 0 0 40px rgba(255, 215, 0, 1), 0 0 60px rgba(255, 215, 0, 0.5);
+  }
+}
+
+.vs-text {
+  animation: vs-glow 2s ease-in-out infinite;
+}
+
+/* Score reveal animation */
+@keyframes score-reveal {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.score-reveal {
+  animation: score-reveal 0.5s ease-out forwards;
+}
+
+/* Audio visualizer */
+.audio-bar {
+  @apply bg-fire-500 rounded-full transition-all duration-75;
+}
+
+/* Matchmaking spinner */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-slow {
+  animation: spin-slow 3s linear infinite;
+}
+
+.spin-reverse {
+  animation: spin-slow 4s linear infinite reverse;
+}
