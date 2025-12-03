@@ -44,10 +44,35 @@ export interface Battle {
   created_at: string
   started_at: string | null
   completed_at: string | null
+  // Voting settings
+  voting_style: 'per_round' | 'overall'
+  show_votes_during_battle: boolean
   // Joined data
   player1?: Profile
   player2?: Profile
   beat?: Beat
+  spectators?: Spectator[]
+  votes?: Vote[]
+}
+
+export interface Spectator {
+  id: string
+  battle_id: string
+  user_id: string
+  joined_at: string
+  // Joined data
+  user?: Profile
+}
+
+export interface Vote {
+  id: string
+  battle_id: string
+  voter_id: string
+  voted_for_player_id: string
+  round_number: number | null  // null means overall vote
+  created_at: string
+  // Joined data
+  voter?: Profile
 }
 
 export interface BattleRound {
@@ -127,17 +152,28 @@ export async function getBeats(): Promise<Beat[]> {
   return data || []
 }
 
-export async function createBattle(player1Id: string, roomCode: string): Promise<Battle | null> {
+export interface CreateBattleOptions {
+  player1Id: string
+  roomCode: string
+  totalRounds?: number
+  votingStyle?: 'per_round' | 'overall'
+  showVotesDuringBattle?: boolean
+}
+
+export async function createBattle(options: CreateBattleOptions): Promise<Battle | null> {
   const { data, error } = await supabase
     .from('battles')
     .insert({
-      player1_id: player1Id,
-      room_code: roomCode,
-      status: 'waiting'
+      player1_id: options.player1Id,
+      room_code: options.roomCode,
+      status: 'waiting',
+      total_rounds: options.totalRounds || 2,
+      voting_style: options.votingStyle || 'overall',
+      show_votes_during_battle: options.showVotesDuringBattle ?? false
     })
     .select()
     .single()
-  
+
   if (error) {
     console.error('Error creating battle:', error)
     return null
@@ -228,4 +264,214 @@ export function generateRoomCode(): string {
     code += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return code
+}
+
+// Spectator functions
+export async function joinAsSpectator(battleId: string, userId: string): Promise<Spectator | null> {
+  const { data, error } = await supabase
+    .from('battle_spectators')
+    .insert({
+      battle_id: battleId,
+      user_id: userId
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error joining as spectator:', error)
+    return null
+  }
+  return data
+}
+
+export async function leaveAsSpectator(battleId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('battle_spectators')
+    .delete()
+    .eq('battle_id', battleId)
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Error leaving as spectator:', error)
+    return false
+  }
+  return true
+}
+
+export async function getSpectators(battleId: string): Promise<Spectator[]> {
+  const { data, error } = await supabase
+    .from('battle_spectators')
+    .select(`
+      *,
+      user:profiles(id, username, avatar_url)
+    `)
+    .eq('battle_id', battleId)
+
+  if (error) {
+    console.error('Error fetching spectators:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function getSpectatorCount(battleId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('battle_spectators')
+    .select('*', { count: 'exact', head: true })
+    .eq('battle_id', battleId)
+
+  if (error) {
+    console.error('Error counting spectators:', error)
+    return 0
+  }
+  return count || 0
+}
+
+// Voting functions
+export async function castVote(
+  battleId: string,
+  visitorId: string,
+  votedForPlayerId: string,
+  roundNumber: number | null = null
+): Promise<Vote | null> {
+  // Check if user already voted for this round/overall
+  const existingQuery = supabase
+    .from('battle_votes')
+    .select('id')
+    .eq('battle_id', battleId)
+    .eq('voter_id', visitorId)
+
+  if (roundNumber !== null) {
+    existingQuery.eq('round_number', roundNumber)
+  } else {
+    existingQuery.is('round_number', null)
+  }
+
+  const { data: existing } = await existingQuery.single()
+
+  if (existing) {
+    // Update existing vote
+    const { data, error } = await supabase
+      .from('battle_votes')
+      .update({ voted_for_player_id: votedForPlayerId })
+      .eq('id', existing.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating vote:', error)
+      return null
+    }
+    return data
+  }
+
+  // Create new vote
+  const { data, error } = await supabase
+    .from('battle_votes')
+    .insert({
+      battle_id: battleId,
+      voter_id: visitorId,
+      voted_for_player_id: votedForPlayerId,
+      round_number: roundNumber
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error casting vote:', error)
+    return null
+  }
+  return data
+}
+
+export async function getVotes(battleId: string, roundNumber?: number | null): Promise<Vote[]> {
+  let query = supabase
+    .from('battle_votes')
+    .select(`
+      *,
+      voter:profiles(id, username, avatar_url)
+    `)
+    .eq('battle_id', battleId)
+
+  if (roundNumber !== undefined) {
+    if (roundNumber === null) {
+      query = query.is('round_number', null)
+    } else {
+      query = query.eq('round_number', roundNumber)
+    }
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('Error fetching votes:', error)
+    return []
+  }
+  return data || []
+}
+
+export interface VoteCounts {
+  player1Votes: number
+  player2Votes: number
+  totalVotes: number
+}
+
+export async function getVoteCounts(
+  battleId: string,
+  player1Id: string,
+  player2Id: string,
+  roundNumber?: number | null
+): Promise<VoteCounts> {
+  const votes = await getVotes(battleId, roundNumber)
+
+  const player1Votes = votes.filter(v => v.voted_for_player_id === player1Id).length
+  const player2Votes = votes.filter(v => v.voted_for_player_id === player2Id).length
+
+  return {
+    player1Votes,
+    player2Votes,
+    totalVotes: player1Votes + player2Votes
+  }
+}
+
+export async function hasUserVoted(
+  battleId: string,
+  visitorId: string,
+  roundNumber?: number | null
+): Promise<boolean> {
+  let query = supabase
+    .from('battle_votes')
+    .select('id', { count: 'exact', head: true })
+    .eq('battle_id', battleId)
+    .eq('voter_id', visitorId)
+
+  if (roundNumber !== undefined) {
+    if (roundNumber === null) {
+      query = query.is('round_number', null)
+    } else {
+      query = query.eq('round_number', roundNumber)
+    }
+  }
+
+  const { count, error } = await query
+
+  if (error) {
+    console.error('Error checking vote:', error)
+    return false
+  }
+  return (count || 0) > 0
+}
+
+export async function isUserSpectator(battleId: string, userId: string): Promise<boolean> {
+  const { count, error } = await supabase
+    .from('battle_spectators')
+    .select('*', { count: 'exact', head: true })
+    .eq('battle_id', battleId)
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Error checking spectator status:', error)
+    return false
+  }
+  return (count || 0) > 0
 }

@@ -139,7 +139,7 @@ export default function MatchmakingPage() {
       
       // Create battle
       const roomCode = generateRoomCode()
-      const battle = await createBattle(user.id, roomCode)
+      const battle = await createBattle({ player1Id: user.id, roomCode })
       
       if (battle) {
         // Update both players in queue
