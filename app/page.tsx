@@ -218,7 +218,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t border-dark-800 py-8">
         <div className="max-w-6xl mx-auto px-4 text-center text-dark-500">
-          <p>Built with 🔥 by Justin @ Patty Shack</p>
+          <p>Built with 🔥 by Justin</p>
         </div>
       </footer>
     </div>
