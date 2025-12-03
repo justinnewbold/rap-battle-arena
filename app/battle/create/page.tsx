@@ -3,10 +3,10 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Copy, Check, Users, ArrowLeft, Loader2, Settings, Vote, Eye, EyeOff } from 'lucide-react'
+import { Copy, Check, Users, ArrowLeft, Loader2, Settings, Vote, Eye, EyeOff, Music, Play, Pause, Share2 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { supabase, createBattle, Battle, CreateBattleOptions } from '@/lib/supabase'
-import { getAvatarUrl, generateRoomCode } from '@/lib/utils'
+import { supabase, createBattle, Battle, CreateBattleOptions, getBeats, Beat } from '@/lib/supabase'
+import { getAvatarUrl, generateRoomCode, cn } from '@/lib/utils'
 
 type Step = 'settings' | 'waiting'
 
@@ -26,12 +26,65 @@ function CreateBattleContent() {
   const [votingStyle, setVotingStyle] = useState<'per_round' | 'overall'>('overall')
   const [showVotesDuringBattle, setShowVotesDuringBattle] = useState(false)
 
+  // Beat selection
+  const [beats, setBeats] = useState<Beat[]>([])
+  const [selectedBeat, setSelectedBeat] = useState<Beat | null>(null)
+  const [playingBeatId, setPlayingBeatId] = useState<string | null>(null)
+  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
+
   useEffect(() => {
     if (!user) {
       router.push('/')
       return
     }
+    loadBeats()
   }, [user, router])
+
+  useEffect(() => {
+    // Cleanup audio on unmount
+    return () => {
+      if (audioRef) {
+        audioRef.pause()
+        audioRef.src = ''
+      }
+    }
+  }, [audioRef])
+
+  async function loadBeats() {
+    const loadedBeats = await getBeats()
+    setBeats(loadedBeats)
+    // Demo beats if none loaded
+    if (loadedBeats.length === 0) {
+      setBeats([
+        { id: 'demo-1', name: 'Street Heat', artist: 'BeatMaster', bpm: 90, audio_url: '', cover_url: null, duration: 180, is_premium: false },
+        { id: 'demo-2', name: 'Night Vibes', artist: 'ProducerX', bpm: 85, audio_url: '', cover_url: null, duration: 200, is_premium: false },
+        { id: 'demo-3', name: 'Battle Ready', artist: 'HipHopKing', bpm: 95, audio_url: '', cover_url: null, duration: 160, is_premium: false },
+        { id: 'demo-4', name: 'Underground Flow', artist: 'BeatMaster', bpm: 88, audio_url: '', cover_url: null, duration: 190, is_premium: true },
+      ])
+    }
+  }
+
+  function toggleBeatPlay(beat: Beat) {
+    if (!beat.audio_url) return
+
+    if (playingBeatId === beat.id) {
+      // Stop playing
+      if (audioRef) {
+        audioRef.pause()
+      }
+      setPlayingBeatId(null)
+    } else {
+      // Play new beat
+      if (audioRef) {
+        audioRef.pause()
+      }
+      const audio = new Audio(beat.audio_url)
+      audio.loop = true
+      audio.play()
+      setAudioRef(audio)
+      setPlayingBeatId(beat.id)
+    }
+  }
 
   async function handleCreateBattle() {
     const code = searchParams.get('code') || generateRoomCode()
@@ -42,12 +95,19 @@ function CreateBattleContent() {
       return
     }
 
+    // Stop any playing audio
+    if (audioRef) {
+      audioRef.pause()
+      setPlayingBeatId(null)
+    }
+
     const options: CreateBattleOptions = {
       player1Id: user!.id,
       roomCode: code,
       totalRounds,
       votingStyle,
-      showVotesDuringBattle: votingStyle === 'per_round' ? showVotesDuringBattle : false
+      showVotesDuringBattle: votingStyle === 'per_round' ? showVotesDuringBattle : false,
+      beatId: selectedBeat?.id.startsWith('demo-') ? null : selectedBeat?.id
     }
 
     const newBattle = await createBattle(options)
@@ -218,6 +278,86 @@ function CreateBattleContent() {
                 </motion.div>
               )}
 
+              {/* Beat Selection */}
+              <div>
+                <label className="block text-sm font-medium text-dark-300 mb-2">
+                  <Music className="w-4 h-4 inline mr-2" />
+                  Battle Beat (Optional)
+                </label>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                  {/* No beat option */}
+                  <button
+                    onClick={() => setSelectedBeat(null)}
+                    className={cn(
+                      "w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left",
+                      selectedBeat === null
+                        ? 'bg-gold-500/20 border border-gold-500/30'
+                        : 'bg-dark-700 hover:bg-dark-600'
+                    )}
+                  >
+                    <div className="w-10 h-10 bg-dark-600 rounded-lg flex items-center justify-center">
+                      <Music className="w-5 h-5 text-dark-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">No Beat</p>
+                      <p className="text-xs text-dark-400">Freestyle without music</p>
+                    </div>
+                  </button>
+
+                  {beats.map((beat) => (
+                    <div
+                      key={beat.id}
+                      className={cn(
+                        "w-full p-3 rounded-xl flex items-center gap-3 transition-all",
+                        selectedBeat?.id === beat.id
+                          ? 'bg-gold-500/20 border border-gold-500/30'
+                          : 'bg-dark-700 hover:bg-dark-600'
+                      )}
+                    >
+                      {/* Play button */}
+                      <button
+                        onClick={() => toggleBeatPlay(beat)}
+                        className={cn(
+                          "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                          playingBeatId === beat.id
+                            ? 'bg-gold-500 text-black'
+                            : 'bg-dark-600 hover:bg-dark-500'
+                        )}
+                      >
+                        {playingBeatId === beat.id ? (
+                          <Pause className="w-5 h-5" />
+                        ) : (
+                          <Play className="w-5 h-5 ml-0.5" />
+                        )}
+                      </button>
+
+                      {/* Beat info - clickable to select */}
+                      <button
+                        onClick={() => setSelectedBeat(beat)}
+                        className="flex-1 text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{beat.name}</p>
+                          {beat.is_premium && (
+                            <span className="text-xs bg-gold-500/20 text-gold-400 px-1.5 py-0.5 rounded">
+                              PRO
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-dark-400">
+                          {beat.artist} • {beat.bpm} BPM
+                        </p>
+                      </button>
+
+                      {/* Selected indicator */}
+                      {selectedBeat?.id === beat.id && (
+                        <Check className="w-5 h-5 text-gold-400 shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Info text */}
               <div className="bg-dark-800/50 rounded-xl p-4 text-sm text-dark-400">
                 <p>
@@ -266,6 +406,36 @@ function CreateBattleContent() {
               </button>
             </div>
 
+            {/* Share Link */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}/battle/join?code=${roomCode}`
+                  navigator.clipboard.writeText(shareUrl)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                }}
+                className="flex-1 py-2 bg-dark-700 hover:bg-dark-600 rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
+              >
+                <Share2 className="w-4 h-4" />
+                Share Link
+              </button>
+              {typeof navigator !== 'undefined' && navigator.share && (
+                <button
+                  onClick={() => {
+                    navigator.share({
+                      title: 'Join my rap battle!',
+                      text: `Join my rap battle with code: ${roomCode}`,
+                      url: `${window.location.origin}/battle/join?code=${roomCode}`
+                    })
+                  }}
+                  className="py-2 px-4 bg-fire-500 hover:bg-fire-400 rounded-lg flex items-center justify-center gap-2 text-sm transition-colors"
+                >
+                  Share
+                </button>
+              )}
+            </div>
+
             {/* Battle Settings Summary */}
             <div className="bg-dark-800/50 rounded-xl p-3 mb-4 text-sm text-left">
               <div className="flex justify-between text-dark-400">
@@ -286,6 +456,12 @@ function CreateBattleContent() {
                   </span>
                 </div>
               )}
+              <div className="flex justify-between text-dark-400 mt-1">
+                <span>Beat:</span>
+                <span className="text-white">
+                  {selectedBeat ? selectedBeat.name : 'No beat'}
+                </span>
+              </div>
             </div>
 
             <div className="py-8">

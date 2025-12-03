@@ -158,6 +158,7 @@ export interface CreateBattleOptions {
   totalRounds?: number
   votingStyle?: 'per_round' | 'overall'
   showVotesDuringBattle?: boolean
+  beatId?: string | null
 }
 
 export async function createBattle(options: CreateBattleOptions): Promise<Battle | null> {
@@ -169,7 +170,8 @@ export async function createBattle(options: CreateBattleOptions): Promise<Battle
       status: 'waiting',
       total_rounds: options.totalRounds || 2,
       voting_style: options.votingStyle || 'overall',
-      show_votes_during_battle: options.showVotesDuringBattle ?? false
+      show_votes_during_battle: options.showVotesDuringBattle ?? false,
+      beat_id: options.beatId || null
     })
     .select()
     .single()
@@ -474,4 +476,62 @@ export async function isUserSpectator(battleId: string, userId: string): Promise
     return false
   }
   return (count || 0) > 0
+}
+
+// Chat types and functions
+export interface ChatMessage {
+  id: string
+  battle_id: string
+  user_id: string
+  message: string
+  created_at: string
+  // Joined data
+  user?: {
+    id: string
+    username: string
+    avatar_url: string | null
+  }
+}
+
+export async function sendChatMessage(
+  battleId: string,
+  userId: string,
+  message: string
+): Promise<ChatMessage | null> {
+  const { data, error } = await supabase
+    .from('battle_chat')
+    .insert({
+      battle_id: battleId,
+      user_id: userId,
+      message: message.slice(0, 500) // Limit message length
+    })
+    .select(`
+      *,
+      user:profiles(id, username, avatar_url)
+    `)
+    .single()
+
+  if (error) {
+    console.error('Error sending chat message:', error)
+    return null
+  }
+  return data
+}
+
+export async function getChatMessages(battleId: string, limit: number = 50): Promise<ChatMessage[]> {
+  const { data, error } = await supabase
+    .from('battle_chat')
+    .select(`
+      *,
+      user:profiles(id, username, avatar_url)
+    `)
+    .eq('battle_id', battleId)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching chat messages:', error)
+    return []
+  }
+  return data || []
 }

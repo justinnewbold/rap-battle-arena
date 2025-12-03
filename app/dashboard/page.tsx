@@ -191,9 +191,17 @@ export default function DashboardPage() {
             transition={{ delay: 0.2 }}
             className="card"
           >
-            <div className="flex items-center gap-2 mb-4">
-              <Trophy className="w-5 h-5 text-gold-500" />
-              <h3 className="text-lg font-bold">Leaderboard</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-gold-500" />
+                <h3 className="text-lg font-bold">Leaderboard</h3>
+              </div>
+              <button
+                onClick={() => router.push('/leaderboard')}
+                className="text-sm text-gold-400 hover:text-gold-300 flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="space-y-2">
@@ -203,7 +211,8 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={player.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                    onClick={() => router.push(`/profile/${player.id}`)}
+                    className={`flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer ${
                       isCurrentUser ? 'bg-fire-500/10 border border-fire-500/30' : 'bg-dark-700/50 hover:bg-dark-700'
                     }`}
                   >
@@ -247,9 +256,17 @@ export default function DashboardPage() {
             transition={{ delay: 0.3 }}
             className="card"
           >
-            <div className="flex items-center gap-2 mb-4">
-              <Clock className="w-5 h-5 text-ice-500" />
-              <h3 className="text-lg font-bold">Recent Battles</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-ice-500" />
+                <h3 className="text-lg font-bold">Recent Battles</h3>
+              </div>
+              <button
+                onClick={() => router.push('/history')}
+                className="text-sm text-ice-400 hover:text-ice-300 flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
             {recentBattles.length > 0 ? (

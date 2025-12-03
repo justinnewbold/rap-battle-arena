@@ -10,8 +10,10 @@ import {
 import { useUserStore, useBattleStore } from '@/lib/store'
 import {
   supabase, getBattle, Battle, Profile,
-  castVote, getVoteCounts, VoteCounts, getSpectatorCount, isUserSpectator
+  castVote, getVoteCounts, VoteCounts, getSpectatorCount, isUserSpectator,
+  ChatMessage
 } from '@/lib/supabase'
+import SpectatorChat from '@/components/SpectatorChat'
 import { getAvatarUrl, cn } from '@/lib/utils'
 
 type BattlePhase = 'waiting' | 'countdown' | 'player1' | 'player2' | 'voting' | 'results'
@@ -753,6 +755,16 @@ function BattleContent() {
           </div>
         )}
       </main>
+
+      {/* Spectator Chat */}
+      {user && phase !== 'waiting' && (
+        <SpectatorChat
+          battleId={battleId}
+          userId={user.id}
+          username={user.username}
+          isDemo={isDemo || battleId.startsWith('demo-')}
+        />
+      )}
     </div>
   )
 }
