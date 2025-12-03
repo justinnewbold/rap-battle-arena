@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Copy, Check, Users, ArrowLeft, Loader2 } from 'lucide-react'
@@ -8,7 +8,7 @@ import { useUserStore } from '@/lib/store'
 import { supabase, createBattle, Battle } from '@/lib/supabase'
 import { getAvatarUrl, generateRoomCode } from '@/lib/utils'
 
-export default function CreateBattlePage() {
+function CreateBattleContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, isDemo } = useUserStore()
@@ -37,7 +37,6 @@ export default function CreateBattlePage() {
     if (newBattle) {
       setBattle(newBattle)
       
-      // Subscribe to battle updates
       const channel = supabase
         .channel(`battle-${newBattle.id}`)
         .on(
@@ -50,7 +49,6 @@ export default function CreateBattlePage() {
           },
           (payload) => {
             if (payload.new.status === 'ready' && payload.new.player2_id) {
-              // Someone joined!
               setWaiting(false)
               setTimeout(() => {
                 router.push(`/battle/${newBattle.id}`)
@@ -69,12 +67,10 @@ export default function CreateBattlePage() {
   }
 
   function handleDemoStart() {
-    // In demo mode, just go to a demo battle
     router.push(`/battle/demo-${Date.now()}`)
   }
 
   function handleCancel() {
-    // Delete the battle if we created one
     if (battle) {
       supabase.from('battles').delete().eq('id', battle.id)
     }
@@ -106,7 +102,6 @@ export default function CreateBattlePage() {
           <h2 className="text-2xl font-bold mb-2">Battle Room Created</h2>
           <p className="text-dark-400 mb-6">Share this code with your opponent</p>
 
-          {/* Room Code Display */}
           <div className="bg-dark-700 rounded-xl p-4 mb-4">
             <div className="text-4xl font-mono font-bold tracking-widest text-ice-400 mb-2">
               {roomCode}
@@ -129,7 +124,6 @@ export default function CreateBattlePage() {
             </button>
           </div>
 
-          {/* Waiting Animation */}
           <div className="py-8">
             {waiting ? (
               <>
@@ -159,7 +153,6 @@ export default function CreateBattlePage() {
             )}
           </div>
 
-          {/* Demo mode button */}
           {isDemo && (
             <button onClick={handleDemoStart} className="btn-fire w-full">
               Start Demo Battle
@@ -168,5 +161,21 @@ export default function CreateBattlePage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-dark-950 flex items-center justify-center">
+      <div className="w-16 h-16 border-4 border-fire-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
+
+export default function CreateBattlePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <CreateBattleContent />
+    </Suspense>
   )
 }
