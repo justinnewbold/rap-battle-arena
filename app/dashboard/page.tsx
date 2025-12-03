@@ -147,7 +147,7 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid md:grid-cols-3 gap-4 mb-6"
+          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
         >
           <button
             onClick={handleQuickMatch}
@@ -180,6 +180,17 @@ export default function DashboardPage() {
             </div>
             <h3 className="text-lg font-bold mb-1">Join Room</h3>
             <p className="text-sm text-dark-400">Enter room code</p>
+          </button>
+
+          <button
+            onClick={() => router.push('/tournaments')}
+            className="card-hover flex flex-col items-center justify-center py-8 group"
+          >
+            <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-purple-500/30 transition-colors">
+              <Trophy className="w-8 h-8 text-purple-400" />
+            </div>
+            <h3 className="text-lg font-bold mb-1">Tournaments</h3>
+            <p className="text-sm text-dark-400">Compete for glory</p>
           </button>
         </motion.div>
 

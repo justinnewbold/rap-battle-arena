@@ -15,6 +15,7 @@ import {
 } from '@/lib/supabase'
 import SpectatorChat from '@/components/SpectatorChat'
 import { getAvatarUrl, cn } from '@/lib/utils'
+import { useSounds } from '@/lib/sounds'
 
 type BattlePhase = 'waiting' | 'countdown' | 'player1' | 'player2' | 'voting' | 'results'
 
@@ -61,6 +62,17 @@ function BattleContent() {
   const [isMuted, setIsMuted] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const sounds = useSounds()
+
+  useEffect(() => {
+    // Preload sounds on mount
+    sounds.preload()
+  }, [])
+
+  useEffect(() => {
+    // Sync mute state with sound manager
+    sounds.setEnabled(!isMuted)
+  }, [isMuted])
 
   useEffect(() => {
     if (!user) {
@@ -95,9 +107,11 @@ function BattleContent() {
   // Countdown timer
   useEffect(() => {
     if (phase === 'countdown' && countdown > 0) {
+      sounds.play('countdown')
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
       return () => clearTimeout(timer)
     } else if (phase === 'countdown' && countdown === 0) {
+      sounds.play('round_start')
       startTurn()
     }
   }, [phase, countdown])
@@ -261,6 +275,7 @@ function BattleContent() {
 
   function endTurn() {
     stopRecording()
+    sounds.play('round_end')
 
     // Check if round is complete (both players went)
     if (currentTurn === 2) {
@@ -317,6 +332,7 @@ function BattleContent() {
   async function handleVote(playerId: string) {
     if (!isSpectator || hasVoted || !user || !battle) return
 
+    sounds.play('vote')
     setVotedFor(playerId)
     setHasVoted(true)
 
@@ -354,14 +370,26 @@ function BattleContent() {
 
   function calculateWinner() {
     // Winner is determined by votes
+    let winnerNum: 1 | 2
     if (voteCounts.player1Votes > voteCounts.player2Votes) {
-      setWinner(1)
+      winnerNum = 1
     } else if (voteCounts.player2Votes > voteCounts.player1Votes) {
-      setWinner(2)
+      winnerNum = 2
     } else {
       // Tie - could implement tiebreaker logic
-      setWinner(Math.random() > 0.5 ? 1 : 2)
+      winnerNum = Math.random() > 0.5 ? 1 : 2
     }
+    setWinner(winnerNum)
+
+    // Play victory or defeat sound based on whether user won
+    const userIsWinner = (winnerNum === 1 && user?.id === player1?.id) ||
+                         (winnerNum === 2 && user?.id === player2?.id)
+    if (!isSpectator) {
+      sounds.play(userIsWinner ? 'victory' : 'defeat')
+    } else {
+      sounds.play('victory')
+    }
+
     setPhase('results')
   }
 

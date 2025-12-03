@@ -1,0 +1,27 @@
+{
+  "name": "Rap Battle Arena",
+  "short_name": "Rap Battle",
+  "description": "Battle rappers worldwide with spectator voting. Record your verses and compete for glory.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050507",
+  "theme_color": "#050507",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["entertainment", "music", "games"],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
