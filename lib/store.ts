@@ -72,6 +72,50 @@ export const useBattleStore = create<BattleState>((set) => ({
   }),
 }))
 
+// Tutorial state
+interface TutorialState {
+  hasCompletedTutorial: boolean
+  currentStep: number
+  tutorialActive: boolean
+  setHasCompletedTutorial: (completed: boolean) => void
+  setCurrentStep: (step: number) => void
+  setTutorialActive: (active: boolean) => void
+  nextStep: () => void
+  prevStep: () => void
+  completeTutorial: () => void
+  resetTutorial: () => void
+}
+
+export const useTutorialStore = create<TutorialState>((set) => ({
+  hasCompletedTutorial: typeof window !== 'undefined'
+    ? localStorage.getItem('tutorial_completed') === 'true'
+    : false,
+  currentStep: 0,
+  tutorialActive: false,
+  setHasCompletedTutorial: (hasCompletedTutorial) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tutorial_completed', String(hasCompletedTutorial))
+    }
+    set({ hasCompletedTutorial })
+  },
+  setCurrentStep: (currentStep) => set({ currentStep }),
+  setTutorialActive: (tutorialActive) => set({ tutorialActive }),
+  nextStep: () => set((state) => ({ currentStep: state.currentStep + 1 })),
+  prevStep: () => set((state) => ({ currentStep: Math.max(0, state.currentStep - 1) })),
+  completeTutorial: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tutorial_completed', 'true')
+    }
+    set({ hasCompletedTutorial: true, tutorialActive: false, currentStep: 0 })
+  },
+  resetTutorial: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('tutorial_completed')
+    }
+    set({ hasCompletedTutorial: false, currentStep: 0, tutorialActive: false })
+  },
+}))
+
 // Demo user for testing without auth
 export const DEMO_USER: Profile = {
   id: 'demo-user-123',

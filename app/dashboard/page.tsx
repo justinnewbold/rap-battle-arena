@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { 
-  Mic2, Trophy, Swords, User, LogOut, TrendingUp, 
+import {
+  Mic2, Trophy, Swords, User, LogOut, TrendingUp,
   Target, Flame, Clock, ChevronRight, Users, Zap,
-  Play, UserPlus, Hash
+  Play, UserPlus, Hash, Bell, Settings, Award, Dumbbell
 } from 'lucide-react'
 import { useUserStore, useBattleStore, DEMO_USER } from '@/lib/store'
 import { supabase, getLeaderboard, getRecentBattles, Profile, Battle } from '@/lib/supabase'
@@ -81,15 +81,28 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {isDemo && (
               <span className="bg-gold-500/20 text-gold-400 text-xs font-medium px-2 py-1 rounded-full">
                 DEMO MODE
               </span>
             )}
             <button
+              onClick={() => router.push('/notifications')}
+              className="relative text-dark-400 hover:text-white transition-colors p-2"
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-fire-500 rounded-full" />
+            </button>
+            <button
+              onClick={() => router.push('/settings')}
+              className="text-dark-400 hover:text-white transition-colors p-2"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+            <button
               onClick={handleLogout}
-              className="text-dark-400 hover:text-white transition-colors"
+              className="text-dark-400 hover:text-white transition-colors p-2"
             >
               <LogOut className="w-5 h-5" />
             </button>
@@ -191,6 +204,54 @@ export default function DashboardPage() {
             </div>
             <h3 className="text-lg font-bold mb-1">Tournaments</h3>
             <p className="text-sm text-dark-400">Compete for glory</p>
+          </button>
+        </motion.div>
+
+        {/* Quick Links */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6"
+        >
+          <button
+            onClick={() => router.push('/practice')}
+            className="card py-4 flex items-center gap-3 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
+              <Dumbbell className="w-5 h-5 text-green-400" />
+            </div>
+            <span className="font-medium">Practice</span>
+          </button>
+
+          <button
+            onClick={() => router.push('/friends')}
+            className="card py-4 flex items-center gap-3 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-ice-500/20 rounded-xl flex items-center justify-center">
+              <Users className="w-5 h-5 text-ice-400" />
+            </div>
+            <span className="font-medium">Friends</span>
+          </button>
+
+          <button
+            onClick={() => router.push('/crews')}
+            className="card py-4 flex items-center gap-3 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
+              <Award className="w-5 h-5 text-purple-400" />
+            </div>
+            <span className="font-medium">Crews</span>
+          </button>
+
+          <button
+            onClick={() => router.push(`/profile/${user.id}`)}
+            className="card py-4 flex items-center gap-3 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-fire-500/20 rounded-xl flex items-center justify-center">
+              <User className="w-5 h-5 text-fire-400" />
+            </div>
+            <span className="font-medium">Profile</span>
           </button>
         </motion.div>
 

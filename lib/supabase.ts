@@ -707,3 +707,724 @@ export async function isUserInTournament(tournamentId: string, userId: string): 
   }
   return (count || 0) > 0
 }
+
+// Friends/Following system
+export type FriendshipStatus = 'pending' | 'accepted' | 'blocked'
+
+export interface Friendship {
+  id: string
+  user_id: string
+  friend_id: string
+  status: FriendshipStatus
+  created_at: string
+  updated_at: string
+  // Joined data
+  user?: Profile
+  friend?: Profile
+}
+
+export async function sendFriendRequest(userId: string, friendId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('friendships')
+    .insert({
+      user_id: userId,
+      friend_id: friendId,
+      status: 'pending'
+    })
+
+  if (error) {
+    console.error('Error sending friend request:', error)
+    return false
+  }
+  return true
+}
+
+export async function acceptFriendRequest(friendshipId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('friendships')
+    .update({ status: 'accepted', updated_at: new Date().toISOString() })
+    .eq('id', friendshipId)
+
+  if (error) {
+    console.error('Error accepting friend request:', error)
+    return false
+  }
+  return true
+}
+
+export async function removeFriend(userId: string, friendId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('friendships')
+    .delete()
+    .or(`and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`)
+
+  if (error) {
+    console.error('Error removing friend:', error)
+    return false
+  }
+  return true
+}
+
+export async function getFriends(userId: string): Promise<Profile[]> {
+  // Get friendships where user is either the requester or the friend
+  const { data, error } = await supabase
+    .from('friendships')
+    .select(`
+      *,
+      user:profiles!friendships_user_id_fkey(id, username, avatar_url, elo_rating, wins, losses, total_battles),
+      friend:profiles!friendships_friend_id_fkey(id, username, avatar_url, elo_rating, wins, losses, total_battles)
+    `)
+    .eq('status', 'accepted')
+    .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+
+  if (error) {
+    console.error('Error fetching friends:', error)
+    return []
+  }
+
+  // Extract the friend profile (the one that isn't the current user)
+  return (data || []).map(f => f.user_id === userId ? f.friend : f.user).filter(Boolean) as Profile[]
+}
+
+export async function getPendingFriendRequests(userId: string): Promise<Friendship[]> {
+  const { data, error } = await supabase
+    .from('friendships')
+    .select(`
+      *,
+      user:profiles!friendships_user_id_fkey(id, username, avatar_url, elo_rating)
+    `)
+    .eq('friend_id', userId)
+    .eq('status', 'pending')
+
+  if (error) {
+    console.error('Error fetching pending requests:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function getFriendshipStatus(userId: string, otherUserId: string): Promise<Friendship | null> {
+  const { data, error } = await supabase
+    .from('friendships')
+    .select('*')
+    .or(`and(user_id.eq.${userId},friend_id.eq.${otherUserId}),and(user_id.eq.${otherUserId},friend_id.eq.${userId})`)
+    .single()
+
+  if (error) {
+    return null
+  }
+  return data
+}
+
+// Achievements system
+export type AchievementType =
+  | 'first_win'
+  | 'first_battle'
+  | 'win_streak_5'
+  | 'win_streak_10'
+  | 'battles_10'
+  | 'battles_50'
+  | 'battles_100'
+  | 'tournament_win'
+  | 'tournament_finals'
+  | 'elo_1200'
+  | 'elo_1500'
+  | 'elo_1800'
+  | 'elo_2000'
+  | 'spectator_favorite'
+  | 'social_butterfly'
+
+export interface Achievement {
+  id: string
+  user_id: string
+  achievement_type: AchievementType
+  unlocked_at: string
+}
+
+export const ACHIEVEMENT_INFO: Record<AchievementType, { name: string; description: string; icon: string; rarity: 'common' | 'rare' | 'epic' | 'legendary' }> = {
+  first_battle: { name: 'First Steps', description: 'Complete your first battle', icon: '🎤', rarity: 'common' },
+  first_win: { name: 'Victory Lap', description: 'Win your first battle', icon: '🏆', rarity: 'common' },
+  win_streak_5: { name: 'On Fire', description: 'Win 5 battles in a row', icon: '🔥', rarity: 'rare' },
+  win_streak_10: { name: 'Unstoppable', description: 'Win 10 battles in a row', icon: '⚡', rarity: 'epic' },
+  battles_10: { name: 'Regular', description: 'Complete 10 battles', icon: '🎯', rarity: 'common' },
+  battles_50: { name: 'Veteran', description: 'Complete 50 battles', icon: '⭐', rarity: 'rare' },
+  battles_100: { name: 'Legend', description: 'Complete 100 battles', icon: '👑', rarity: 'epic' },
+  tournament_win: { name: 'Champion', description: 'Win a tournament', icon: '🏅', rarity: 'legendary' },
+  tournament_finals: { name: 'Finalist', description: 'Reach a tournament final', icon: '🥈', rarity: 'epic' },
+  elo_1200: { name: 'Gold Status', description: 'Reach 1200 ELO', icon: '🥇', rarity: 'common' },
+  elo_1500: { name: 'Diamond Status', description: 'Reach 1500 ELO', icon: '💎', rarity: 'rare' },
+  elo_1800: { name: 'Master Status', description: 'Reach 1800 ELO', icon: '🔮', rarity: 'epic' },
+  elo_2000: { name: 'Legendary Status', description: 'Reach 2000 ELO', icon: '👑', rarity: 'legendary' },
+  spectator_favorite: { name: 'Fan Favorite', description: 'Get 100 total spectator votes', icon: '❤️', rarity: 'rare' },
+  social_butterfly: { name: 'Social Butterfly', description: 'Add 10 friends', icon: '🦋', rarity: 'rare' },
+}
+
+export async function getUserAchievements(userId: string): Promise<Achievement[]> {
+  const { data, error } = await supabase
+    .from('achievements')
+    .select('*')
+    .eq('user_id', userId)
+    .order('unlocked_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching achievements:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function unlockAchievement(userId: string, achievementType: AchievementType): Promise<boolean> {
+  // Check if already unlocked
+  const { count } = await supabase
+    .from('achievements')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('achievement_type', achievementType)
+
+  if (count && count > 0) return false // Already unlocked
+
+  const { error } = await supabase
+    .from('achievements')
+    .insert({
+      user_id: userId,
+      achievement_type: achievementType
+    })
+
+  if (error) {
+    console.error('Error unlocking achievement:', error)
+    return false
+  }
+  return true
+}
+
+// Notifications system
+export type NotificationType =
+  | 'friend_request'
+  | 'friend_accepted'
+  | 'battle_invite'
+  | 'tournament_starting'
+  | 'achievement_unlocked'
+  | 'battle_result'
+
+export interface Notification {
+  id: string
+  user_id: string
+  type: NotificationType
+  title: string
+  message: string
+  data: Record<string, unknown> | null
+  read: boolean
+  created_at: string
+}
+
+export async function getNotifications(userId: string, limit: number = 20): Promise<Notification[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching notifications:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('read', false)
+
+  if (error) {
+    console.error('Error fetching unread count:', error)
+    return 0
+  }
+  return count || 0
+}
+
+export async function markNotificationRead(notificationId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read: true })
+    .eq('id', notificationId)
+
+  if (error) {
+    console.error('Error marking notification read:', error)
+    return false
+  }
+  return true
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read: true })
+    .eq('user_id', userId)
+    .eq('read', false)
+
+  if (error) {
+    console.error('Error marking all notifications read:', error)
+    return false
+  }
+  return true
+}
+
+export async function createNotification(
+  userId: string,
+  type: NotificationType,
+  title: string,
+  message: string,
+  data?: Record<string, unknown>
+): Promise<boolean> {
+  const { error } = await supabase
+    .from('notifications')
+    .insert({
+      user_id: userId,
+      type,
+      title,
+      message,
+      data: data || null
+    })
+
+  if (error) {
+    console.error('Error creating notification:', error)
+    return false
+  }
+  return true
+}
+
+// User settings
+export interface UserSettings {
+  id: string
+  user_id: string
+  sound_enabled: boolean
+  sound_volume: number
+  notifications_enabled: boolean
+  notifications_friend_requests: boolean
+  notifications_battle_invites: boolean
+  notifications_tournament_updates: boolean
+  privacy_show_online_status: boolean
+  privacy_allow_friend_requests: boolean
+  privacy_show_battle_history: boolean
+  updated_at: string
+}
+
+export async function getUserSettings(userId: string): Promise<UserSettings | null> {
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('*')
+    .eq('user_id', userId)
+    .single()
+
+  if (error) {
+    // Create default settings if not found
+    if (error.code === 'PGRST116') {
+      const defaults = await createDefaultSettings(userId)
+      return defaults
+    }
+    console.error('Error fetching user settings:', error)
+    return null
+  }
+  return data
+}
+
+export async function createDefaultSettings(userId: string): Promise<UserSettings | null> {
+  const { data, error } = await supabase
+    .from('user_settings')
+    .insert({
+      user_id: userId,
+      sound_enabled: true,
+      sound_volume: 0.7,
+      notifications_enabled: true,
+      notifications_friend_requests: true,
+      notifications_battle_invites: true,
+      notifications_tournament_updates: true,
+      privacy_show_online_status: true,
+      privacy_allow_friend_requests: true,
+      privacy_show_battle_history: true
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating default settings:', error)
+    return null
+  }
+  return data
+}
+
+export async function updateUserSettings(userId: string, settings: Partial<UserSettings>): Promise<boolean> {
+  const { error } = await supabase
+    .from('user_settings')
+    .update({ ...settings, updated_at: new Date().toISOString() })
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Error updating user settings:', error)
+    return false
+  }
+  return true
+}
+
+// Crew/Team system
+export interface Crew {
+  id: string
+  name: string
+  tag: string  // 3-4 character tag like [ABC]
+  description: string | null
+  avatar_url: string | null
+  banner_url: string | null
+  leader_id: string
+  total_wins: number
+  total_losses: number
+  elo_rating: number
+  created_at: string
+  updated_at: string
+  // Joined data
+  leader?: Profile
+  members?: CrewMember[]
+  member_count?: number
+}
+
+export type CrewRole = 'leader' | 'co_leader' | 'member'
+
+export interface CrewMember {
+  id: string
+  crew_id: string
+  user_id: string
+  role: CrewRole
+  joined_at: string
+  // Joined data
+  user?: Profile
+  crew?: Crew
+}
+
+export interface CrewInvite {
+  id: string
+  crew_id: string
+  user_id: string
+  invited_by: string
+  status: 'pending' | 'accepted' | 'declined'
+  created_at: string
+  // Joined data
+  crew?: Crew
+  user?: Profile
+  inviter?: Profile
+}
+
+export interface CrewBattle {
+  id: string
+  crew1_id: string
+  crew2_id: string
+  status: 'pending' | 'in_progress' | 'complete'
+  winner_crew_id: string | null
+  crew1_score: number
+  crew2_score: number
+  best_of: number  // 3, 5, or 7
+  created_at: string
+  completed_at: string | null
+  // Joined data
+  crew1?: Crew
+  crew2?: Crew
+  matches?: CrewBattleMatch[]
+}
+
+export interface CrewBattleMatch {
+  id: string
+  crew_battle_id: string
+  match_number: number
+  player1_id: string  // From crew1
+  player2_id: string  // From crew2
+  battle_id: string | null
+  winner_id: string | null
+  status: 'pending' | 'in_progress' | 'complete'
+  // Joined data
+  player1?: Profile
+  player2?: Profile
+}
+
+// Crew functions
+export async function createCrew(
+  name: string,
+  tag: string,
+  leaderId: string,
+  description?: string
+): Promise<Crew | null> {
+  const { data, error } = await supabase
+    .from('crews')
+    .insert({
+      name,
+      tag: tag.toUpperCase(),
+      leader_id: leaderId,
+      description: description || null
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating crew:', error)
+    return null
+  }
+
+  // Add leader as member
+  await supabase.from('crew_members').insert({
+    crew_id: data.id,
+    user_id: leaderId,
+    role: 'leader'
+  })
+
+  return data
+}
+
+export async function getCrew(crewId: string): Promise<Crew | null> {
+  const { data, error } = await supabase
+    .from('crews')
+    .select(`
+      *,
+      leader:profiles!crews_leader_id_fkey(id, username, avatar_url, elo_rating)
+    `)
+    .eq('id', crewId)
+    .single()
+
+  if (error) {
+    console.error('Error fetching crew:', error)
+    return null
+  }
+  return data
+}
+
+export async function getCrews(limit: number = 20): Promise<Crew[]> {
+  const { data, error } = await supabase
+    .from('crews')
+    .select(`
+      *,
+      leader:profiles!crews_leader_id_fkey(id, username, avatar_url)
+    `)
+    .order('elo_rating', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching crews:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function getCrewMembers(crewId: string): Promise<CrewMember[]> {
+  const { data, error } = await supabase
+    .from('crew_members')
+    .select(`
+      *,
+      user:profiles(id, username, avatar_url, elo_rating, wins, losses)
+    `)
+    .eq('crew_id', crewId)
+    .order('role', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching crew members:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function getUserCrew(userId: string): Promise<Crew | null> {
+  const { data: membership, error: memberError } = await supabase
+    .from('crew_members')
+    .select('crew_id')
+    .eq('user_id', userId)
+    .single()
+
+  if (memberError || !membership) {
+    return null
+  }
+
+  return getCrew(membership.crew_id)
+}
+
+export async function getUserCrewMembership(userId: string): Promise<CrewMember | null> {
+  const { data, error } = await supabase
+    .from('crew_members')
+    .select(`
+      *,
+      crew:crews(*)
+    `)
+    .eq('user_id', userId)
+    .single()
+
+  if (error) {
+    return null
+  }
+  return data
+}
+
+export async function inviteToCrew(crewId: string, userId: string, invitedBy: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('crew_invites')
+    .insert({
+      crew_id: crewId,
+      user_id: userId,
+      invited_by: invitedBy
+    })
+
+  if (error) {
+    console.error('Error inviting to crew:', error)
+    return false
+  }
+  return true
+}
+
+export async function acceptCrewInvite(inviteId: string, userId: string): Promise<boolean> {
+  // Get the invite
+  const { data: invite, error: inviteError } = await supabase
+    .from('crew_invites')
+    .select('crew_id')
+    .eq('id', inviteId)
+    .eq('user_id', userId)
+    .single()
+
+  if (inviteError || !invite) {
+    return false
+  }
+
+  // Update invite status
+  await supabase
+    .from('crew_invites')
+    .update({ status: 'accepted' })
+    .eq('id', inviteId)
+
+  // Add as member
+  const { error } = await supabase
+    .from('crew_members')
+    .insert({
+      crew_id: invite.crew_id,
+      user_id: userId,
+      role: 'member'
+    })
+
+  if (error) {
+    console.error('Error joining crew:', error)
+    return false
+  }
+  return true
+}
+
+export async function declineCrewInvite(inviteId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('crew_invites')
+    .update({ status: 'declined' })
+    .eq('id', inviteId)
+
+  if (error) {
+    console.error('Error declining invite:', error)
+    return false
+  }
+  return true
+}
+
+export async function leaveCrew(crewId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('crew_members')
+    .delete()
+    .eq('crew_id', crewId)
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Error leaving crew:', error)
+    return false
+  }
+  return true
+}
+
+export async function getPendingCrewInvites(userId: string): Promise<CrewInvite[]> {
+  const { data, error } = await supabase
+    .from('crew_invites')
+    .select(`
+      *,
+      crew:crews(id, name, tag, avatar_url),
+      inviter:profiles!crew_invites_invited_by_fkey(id, username, avatar_url)
+    `)
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+
+  if (error) {
+    console.error('Error fetching crew invites:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function updateCrewMemberRole(crewId: string, userId: string, role: CrewRole): Promise<boolean> {
+  const { error } = await supabase
+    .from('crew_members')
+    .update({ role })
+    .eq('crew_id', crewId)
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Error updating member role:', error)
+    return false
+  }
+  return true
+}
+
+export async function getCrewBattles(crewId: string): Promise<CrewBattle[]> {
+  const { data, error } = await supabase
+    .from('crew_battles')
+    .select(`
+      *,
+      crew1:crews!crew_battles_crew1_id_fkey(id, name, tag, avatar_url),
+      crew2:crews!crew_battles_crew2_id_fkey(id, name, tag, avatar_url)
+    `)
+    .or(`crew1_id.eq.${crewId},crew2_id.eq.${crewId}`)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching crew battles:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function createCrewBattle(
+  crew1Id: string,
+  crew2Id: string,
+  bestOf: number = 3
+): Promise<CrewBattle | null> {
+  const { data, error } = await supabase
+    .from('crew_battles')
+    .insert({
+      crew1_id: crew1Id,
+      crew2_id: crew2Id,
+      best_of: bestOf,
+      status: 'pending'
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating crew battle:', error)
+    return null
+  }
+  return data
+}
+
+export async function searchCrews(query: string): Promise<Crew[]> {
+  const { data, error } = await supabase
+    .from('crews')
+    .select(`
+      *,
+      leader:profiles!crews_leader_id_fkey(id, username, avatar_url)
+    `)
+    .or(`name.ilike.%${query}%,tag.ilike.%${query}%`)
+    .limit(20)
+
+  if (error) {
+    console.error('Error searching crews:', error)
+    return []
+  }
+  return data || []
+}
