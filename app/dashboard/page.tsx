@@ -6,7 +6,8 @@ import { motion } from 'framer-motion'
 import {
   Mic2, Trophy, Swords, User, LogOut, TrendingUp,
   Target, Flame, Clock, ChevronRight, Users, Zap,
-  Play, UserPlus, Hash, Bell, Settings, Award, Dumbbell
+  Play, UserPlus, Hash, Bell, Settings, Award, Dumbbell,
+  Search, BarChart3
 } from 'lucide-react'
 import { useUserStore, useBattleStore, useTutorialStore, DEMO_USER } from '@/lib/store'
 import { supabase, getLeaderboard, getRecentBattles, Profile, Battle } from '@/lib/supabase'
@@ -87,12 +88,18 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {isDemo && (
               <span className="bg-gold-500/20 text-gold-400 text-xs font-medium px-2 py-1 rounded-full">
                 DEMO MODE
               </span>
             )}
+            <button
+              onClick={() => router.push('/search')}
+              className="text-dark-400 hover:text-white transition-colors p-2"
+            >
+              <Search className="w-5 h-5" />
+            </button>
             <button
               onClick={() => router.push('/notifications')}
               className="relative text-dark-400 hover:text-white transition-colors p-2"
@@ -218,46 +225,66 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6"
+          className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6"
         >
           <button
             onClick={() => router.push('/practice')}
-            className="card py-4 flex items-center gap-3 hover:border-dark-600 transition-colors"
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
           >
             <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
               <Dumbbell className="w-5 h-5 text-green-400" />
             </div>
-            <span className="font-medium">Practice</span>
+            <span className="text-sm font-medium">Practice</span>
           </button>
 
           <button
             onClick={() => router.push('/friends')}
-            className="card py-4 flex items-center gap-3 hover:border-dark-600 transition-colors"
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
           >
             <div className="w-10 h-10 bg-ice-500/20 rounded-xl flex items-center justify-center">
               <Users className="w-5 h-5 text-ice-400" />
             </div>
-            <span className="font-medium">Friends</span>
+            <span className="text-sm font-medium">Friends</span>
           </button>
 
           <button
             onClick={() => router.push('/crews')}
-            className="card py-4 flex items-center gap-3 hover:border-dark-600 transition-colors"
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
           >
             <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
-              <Award className="w-5 h-5 text-purple-400" />
+              <Users className="w-5 h-5 text-purple-400" />
             </div>
-            <span className="font-medium">Crews</span>
+            <span className="text-sm font-medium">Crews</span>
+          </button>
+
+          <button
+            onClick={() => router.push('/achievements')}
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-gold-500/20 rounded-xl flex items-center justify-center">
+              <Award className="w-5 h-5 text-gold-400" />
+            </div>
+            <span className="text-sm font-medium">Badges</span>
+          </button>
+
+          <button
+            onClick={() => router.push('/stats')}
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-fire-500/20 rounded-xl flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-fire-400" />
+            </div>
+            <span className="text-sm font-medium">Stats</span>
           </button>
 
           <button
             onClick={() => router.push(`/profile/${user.id}`)}
-            className="card py-4 flex items-center gap-3 hover:border-dark-600 transition-colors"
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
           >
-            <div className="w-10 h-10 bg-fire-500/20 rounded-xl flex items-center justify-center">
-              <User className="w-5 h-5 text-fire-400" />
+            <div className="w-10 h-10 bg-dark-600 rounded-xl flex items-center justify-center">
+              <User className="w-5 h-5 text-dark-300" />
             </div>
-            <span className="font-medium">Profile</span>
+            <span className="text-sm font-medium">Profile</span>
           </button>
         </motion.div>
 
