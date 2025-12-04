@@ -5,10 +5,10 @@ import { useRouter, useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, Trophy, Swords, TrendingUp, Calendar,
-  Crown, Medal, Target, Flame, Clock, ChevronRight
+  Crown, Medal, Target, Flame, Clock, ChevronRight, Award, Lock
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { supabase, Profile, Battle, getProfile, getRecentBattles } from '@/lib/supabase'
+import { supabase, Profile, Battle, getProfile, getRecentBattles, Achievement, ACHIEVEMENT_INFO, getUserAchievements } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, getWinRate, formatDate, cn } from '@/lib/utils'
 
 export default function ProfilePage() {
@@ -16,13 +16,21 @@ export default function ProfilePage() {
   const params = useParams()
   const profileId = params.id as string
 
-  const { user } = useUserStore()
+  const { user, isDemo } = useUserStore()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [battles, setBattles] = useState<Battle[]>([])
+  const [achievements, setAchievements] = useState<Achievement[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'battles'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'battles' | 'achievements'>('overview')
 
   const isOwnProfile = user?.id === profileId
+
+  // Demo achievements
+  const DEMO_ACHIEVEMENTS: Achievement[] = [
+    { id: '1', user_id: profileId, achievement_type: 'first_battle', unlocked_at: new Date(Date.now() - 86400000 * 7).toISOString() },
+    { id: '2', user_id: profileId, achievement_type: 'first_win', unlocked_at: new Date(Date.now() - 86400000 * 5).toISOString() },
+    { id: '3', user_id: profileId, achievement_type: 'battles_10', unlocked_at: new Date(Date.now() - 86400000 * 2).toISOString() },
+  ]
 
   useEffect(() => {
     loadProfile()
@@ -38,6 +46,15 @@ export default function ProfilePage() {
 
     setProfile(profileData)
     setBattles(battlesData)
+
+    // Load achievements
+    if (isDemo) {
+      setAchievements(DEMO_ACHIEVEMENTS)
+    } else {
+      const achievementsData = await getUserAchievements(profileId)
+      setAchievements(achievementsData)
+    }
+
     setLoading(false)
   }
 
@@ -245,6 +262,18 @@ export default function ProfilePage() {
           >
             Battle History
           </button>
+          <button
+            onClick={() => setActiveTab('achievements')}
+            className={cn(
+              "px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2",
+              activeTab === 'achievements'
+                ? 'bg-fire-500 text-white'
+                : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
+            )}
+          >
+            <Award className="w-4 h-4" />
+            Achievements ({achievements.length})
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -395,6 +424,72 @@ export default function ProfilePage() {
                 <p className="text-lg">No battles yet</p>
                 <p className="text-sm">This rapper hasn't competed in any battles</p>
               </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeTab === 'achievements' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
+          >
+            {achievements.length > 0 ? (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {achievements.map((achievement, index) => {
+                  const info = ACHIEVEMENT_INFO[achievement.achievement_type]
+                  if (!info) return null
+
+                  const rarityColors = {
+                    common: 'bg-gray-500/20 border-gray-500/50 text-gray-400',
+                    rare: 'bg-blue-500/20 border-blue-500/50 text-blue-400',
+                    epic: 'bg-purple-500/20 border-purple-500/50 text-purple-400',
+                    legendary: 'bg-gold-500/20 border-gold-500/50 text-gold-400',
+                  }
+
+                  return (
+                    <motion.div
+                      key={achievement.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                      className={cn(
+                        "p-4 rounded-xl border",
+                        rarityColors[info.rarity]
+                      )}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-dark-700 flex items-center justify-center text-2xl">
+                          {info.icon}
+                        </div>
+                        <div>
+                          <h4 className="font-bold">{info.name}</h4>
+                          <p className="text-sm text-dark-400">{info.description}</p>
+                          <p className="text-xs text-dark-500 mt-1">
+                            Unlocked {formatDate(achievement.unlocked_at)}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="card text-center py-12">
+                <Award className="w-16 h-16 mx-auto mb-4 text-dark-600" />
+                <p className="text-lg text-dark-400">No achievements yet</p>
+                <p className="text-sm text-dark-500">Start battling to earn badges!</p>
+              </div>
+            )}
+
+            {isOwnProfile && (
+              <button
+                onClick={() => router.push('/achievements')}
+                className="w-full btn-dark flex items-center justify-center gap-2"
+              >
+                <Award className="w-5 h-5" />
+                View All Achievements
+              </button>
             )}
           </motion.div>
         )}

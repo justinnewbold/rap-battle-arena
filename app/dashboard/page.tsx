@@ -8,7 +8,7 @@ import {
   Target, Flame, Clock, ChevronRight, Users, Zap,
   Play, UserPlus, Hash, Bell, Settings, Award, Dumbbell
 } from 'lucide-react'
-import { useUserStore, useBattleStore, DEMO_USER } from '@/lib/store'
+import { useUserStore, useBattleStore, useTutorialStore, DEMO_USER } from '@/lib/store'
 import { supabase, getLeaderboard, getRecentBattles, Profile, Battle } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, getWinRate, formatDate, generateRoomCode } from '@/lib/utils'
 
@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { user, isDemo, setUser, logout } = useUserStore()
   const { setCurrentBattle, resetBattle } = useBattleStore()
+  const { hasCompletedTutorial } = useTutorialStore()
   const [leaderboard, setLeaderboard] = useState<Profile[]>([])
   const [recentBattles, setRecentBattles] = useState<Battle[]>([])
   const [activeTab, setActiveTab] = useState<'home' | 'battle' | 'profile'>('home')
@@ -27,8 +28,13 @@ export default function DashboardPage() {
       router.push('/')
       return
     }
+    // Redirect new users to onboarding
+    if (!hasCompletedTutorial && user.total_battles === 0) {
+      router.push('/onboarding')
+      return
+    }
     loadData()
-  }, [user, router])
+  }, [user, router, hasCompletedTutorial])
 
   async function loadData() {
     const [leaders, battles] = await Promise.all([
