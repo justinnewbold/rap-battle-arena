@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { 
-  Mic2, Trophy, Swords, User, LogOut, TrendingUp, 
+import {
+  Mic2, Trophy, Swords, User, LogOut, TrendingUp,
   Target, Flame, Clock, ChevronRight, Users, Zap,
-  Play, UserPlus, Hash
+  Play, UserPlus, Hash, Bell, Settings, Award, Dumbbell,
+  Search, BarChart3
 } from 'lucide-react'
-import { useUserStore, useBattleStore, DEMO_USER } from '@/lib/store'
+import { useUserStore, useBattleStore, useTutorialStore, DEMO_USER } from '@/lib/store'
 import { supabase, getLeaderboard, getRecentBattles, Profile, Battle } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, getWinRate, formatDate, generateRoomCode } from '@/lib/utils'
 
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const { user, isDemo, setUser, logout } = useUserStore()
   const { setCurrentBattle, resetBattle } = useBattleStore()
+  const { hasCompletedTutorial } = useTutorialStore()
   const [leaderboard, setLeaderboard] = useState<Profile[]>([])
   const [recentBattles, setRecentBattles] = useState<Battle[]>([])
   const [activeTab, setActiveTab] = useState<'home' | 'battle' | 'profile'>('home')
@@ -27,8 +29,13 @@ export default function DashboardPage() {
       router.push('/')
       return
     }
+    // Redirect new users to onboarding
+    if (!hasCompletedTutorial && user.total_battles === 0) {
+      router.push('/onboarding')
+      return
+    }
     loadData()
-  }, [user, router])
+  }, [user, router, hasCompletedTutorial])
 
   async function loadData() {
     const [leaders, battles] = await Promise.all([
@@ -81,15 +88,34 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             {isDemo && (
               <span className="bg-gold-500/20 text-gold-400 text-xs font-medium px-2 py-1 rounded-full">
                 DEMO MODE
               </span>
             )}
             <button
+              onClick={() => router.push('/search')}
+              className="text-dark-400 hover:text-white transition-colors p-2"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => router.push('/notifications')}
+              className="relative text-dark-400 hover:text-white transition-colors p-2"
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-fire-500 rounded-full" />
+            </button>
+            <button
+              onClick={() => router.push('/settings')}
+              className="text-dark-400 hover:text-white transition-colors p-2"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+            <button
               onClick={handleLogout}
-              className="text-dark-400 hover:text-white transition-colors"
+              className="text-dark-400 hover:text-white transition-colors p-2"
             >
               <LogOut className="w-5 h-5" />
             </button>
@@ -147,7 +173,7 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid md:grid-cols-3 gap-4 mb-6"
+          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
         >
           <button
             onClick={handleQuickMatch}
@@ -181,6 +207,85 @@ export default function DashboardPage() {
             <h3 className="text-lg font-bold mb-1">Join Room</h3>
             <p className="text-sm text-dark-400">Enter room code</p>
           </button>
+
+          <button
+            onClick={() => router.push('/tournaments')}
+            className="card-hover flex flex-col items-center justify-center py-8 group"
+          >
+            <div className="w-16 h-16 bg-purple-500/20 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-purple-500/30 transition-colors">
+              <Trophy className="w-8 h-8 text-purple-400" />
+            </div>
+            <h3 className="text-lg font-bold mb-1">Tournaments</h3>
+            <p className="text-sm text-dark-400">Compete for glory</p>
+          </button>
+        </motion.div>
+
+        {/* Quick Links */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6"
+        >
+          <button
+            onClick={() => router.push('/practice')}
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
+              <Dumbbell className="w-5 h-5 text-green-400" />
+            </div>
+            <span className="text-sm font-medium">Practice</span>
+          </button>
+
+          <button
+            onClick={() => router.push('/friends')}
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-ice-500/20 rounded-xl flex items-center justify-center">
+              <Users className="w-5 h-5 text-ice-400" />
+            </div>
+            <span className="text-sm font-medium">Friends</span>
+          </button>
+
+          <button
+            onClick={() => router.push('/crews')}
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
+              <Users className="w-5 h-5 text-purple-400" />
+            </div>
+            <span className="text-sm font-medium">Crews</span>
+          </button>
+
+          <button
+            onClick={() => router.push('/achievements')}
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-gold-500/20 rounded-xl flex items-center justify-center">
+              <Award className="w-5 h-5 text-gold-400" />
+            </div>
+            <span className="text-sm font-medium">Badges</span>
+          </button>
+
+          <button
+            onClick={() => router.push('/stats')}
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-fire-500/20 rounded-xl flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-fire-400" />
+            </div>
+            <span className="text-sm font-medium">Stats</span>
+          </button>
+
+          <button
+            onClick={() => router.push(`/profile/${user.id}`)}
+            className="card py-4 flex flex-col items-center gap-2 hover:border-dark-600 transition-colors"
+          >
+            <div className="w-10 h-10 bg-dark-600 rounded-xl flex items-center justify-center">
+              <User className="w-5 h-5 text-dark-300" />
+            </div>
+            <span className="text-sm font-medium">Profile</span>
+          </button>
         </motion.div>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -191,9 +296,17 @@ export default function DashboardPage() {
             transition={{ delay: 0.2 }}
             className="card"
           >
-            <div className="flex items-center gap-2 mb-4">
-              <Trophy className="w-5 h-5 text-gold-500" />
-              <h3 className="text-lg font-bold">Leaderboard</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-gold-500" />
+                <h3 className="text-lg font-bold">Leaderboard</h3>
+              </div>
+              <button
+                onClick={() => router.push('/leaderboard')}
+                className="text-sm text-gold-400 hover:text-gold-300 flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="space-y-2">
@@ -203,7 +316,8 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={player.id}
-                    className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                    onClick={() => router.push(`/profile/${player.id}`)}
+                    className={`flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer ${
                       isCurrentUser ? 'bg-fire-500/10 border border-fire-500/30' : 'bg-dark-700/50 hover:bg-dark-700'
                     }`}
                   >
@@ -247,9 +361,17 @@ export default function DashboardPage() {
             transition={{ delay: 0.3 }}
             className="card"
           >
-            <div className="flex items-center gap-2 mb-4">
-              <Clock className="w-5 h-5 text-ice-500" />
-              <h3 className="text-lg font-bold">Recent Battles</h3>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-ice-500" />
+                <h3 className="text-lg font-bold">Recent Battles</h3>
+              </div>
+              <button
+                onClick={() => router.push('/history')}
+                className="text-sm text-ice-400 hover:text-ice-300 flex items-center gap-1"
+              >
+                View All <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
             {recentBattles.length > 0 ? (

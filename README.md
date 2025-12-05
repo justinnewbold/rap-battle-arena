@@ -90,4 +90,4 @@ lib/
 
 ---
 
-Built with 🔥 by Justin @ Patty Shack
+Built with 🔥 by Justin

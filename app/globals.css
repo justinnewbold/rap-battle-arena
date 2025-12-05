@@ -171,3 +171,200 @@ body {
 .spin-reverse {
   animation: spin-slow 4s linear infinite reverse;
 }
+
+/* Mobile Optimizations */
+
+/* Safe area padding for notched phones */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+.safe-area-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.safe-area-y {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-all {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Improve touch targets */
+@media (pointer: coarse) {
+  .btn-fire,
+  .btn-ice,
+  .btn-gold,
+  .btn-dark {
+    @apply min-h-[48px];
+  }
+
+  .input {
+    @apply min-h-[48px] text-base;
+  }
+
+  /* Larger click areas on mobile */
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Prevent text selection on interactive elements */
+button,
+[role="button"],
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Hide scrollbars on mobile but keep functionality */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Better mobile typography */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+
+  h1 {
+    @apply text-2xl;
+  }
+
+  h2 {
+    @apply text-xl;
+  }
+
+  h3 {
+    @apply text-lg;
+  }
+
+  .card {
+    @apply p-4;
+  }
+}
+
+/* Prevent zoom on input focus (iOS) */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Better tap highlight */
+* {
+  -webkit-tap-highlight-color: rgba(255, 49, 49, 0.1);
+}
+
+/* Full height on mobile with address bar */
+.min-h-screen-mobile {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.h-screen-mobile {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Fixed position elements with safe area */
+.fixed-bottom-safe {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Landscape mode adjustments */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hide-landscape {
+    display: none;
+  }
+
+  .landscape-compact {
+    @apply py-2 gap-2;
+  }
+}
+
+/* Bottom navigation safe area */
+.nav-bottom {
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+/* Status bar placeholder */
+.status-bar-spacer {
+  height: env(safe-area-inset-top);
+  min-height: 20px;
+}
+
+/* Improved focus states for accessibility */
+@media (prefers-reduced-motion: no-preference) {
+  :focus-visible {
+    outline: 2px solid #ff3131;
+    outline-offset: 2px;
+    transition: outline-offset 0.1s ease;
+  }
+}
+
+/* Dark mode media query (for system preference) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}
+
+/* Reduce animations for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,44 +1,45 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Mic2, MicOff, Play, Pause, SkipForward, 
-  Trophy, X, Volume2, VolumeX, ArrowLeft
+import {
+  Mic2, MicOff, SkipForward, Trophy, Volume2, VolumeX, ArrowLeft,
+  Users, Vote, Eye, ThumbsUp
 } from 'lucide-react'
 import { useUserStore, useBattleStore } from '@/lib/store'
-import { supabase, getBattle, Battle, Profile } from '@/lib/supabase'
-import { getAvatarUrl, formatElo, getEloRank, cn } from '@/lib/utils'
+import {
+  supabase, getBattle, Battle, Profile,
+  castVote, getVoteCounts, VoteCounts, getSpectatorCount, isUserSpectator,
+  ChatMessage
+} from '@/lib/supabase'
+import SpectatorChat from '@/components/SpectatorChat'
+import { getAvatarUrl, cn } from '@/lib/utils'
+import { useSounds } from '@/lib/sounds'
 
-type BattlePhase = 'waiting' | 'countdown' | 'player1' | 'player2' | 'judging' | 'results'
-
-interface RoundScore {
-  rhyme: number
-  flow: number
-  punchlines: number
-  delivery: number
-  creativity: number
-  rebuttal: number
-  total: number
-  feedback: string
-}
+type BattlePhase = 'waiting' | 'countdown' | 'player1' | 'player2' | 'voting' | 'results'
 
 const ROUND_DURATION = 60 // seconds
 const COUNTDOWN_DURATION = 3
 
-export default function BattlePage() {
+function BattleContent() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const battleId = params.id as string
-  
+  const isSpectatorParam = searchParams.get('spectator') === 'true'
+
   const { user, isDemo } = useUserStore()
   const { resetBattle } = useBattleStore()
+
+  // Battle data
+  const [battle, setBattle] = useState<Battle | null>(null)
+  const [isSpectator, setIsSpectator] = useState(isSpectatorParam)
 
   // Battle state
   const [phase, setPhase] = useState<BattlePhase>('waiting')
   const [currentRound, setCurrentRound] = useState(1)
-  const [totalRounds] = useState(2)
+  const [totalRounds, setTotalRounds] = useState(2)
   const [countdown, setCountdown] = useState(COUNTDOWN_DURATION)
   const [timer, setTimer] = useState(ROUND_DURATION)
   const [isRecording, setIsRecording] = useState(false)
@@ -48,15 +49,30 @@ export default function BattlePage() {
   const [player2, setPlayer2] = useState<Profile | null>(null)
   const [currentTurn, setCurrentTurn] = useState<1 | 2>(1)
 
-  // Scores
-  const [player1Scores, setPlayer1Scores] = useState<RoundScore[]>([])
-  const [player2Scores, setPlayer2Scores] = useState<RoundScore[]>([])
+  // Voting
+  const [voteCounts, setVoteCounts] = useState<VoteCounts>({ player1Votes: 0, player2Votes: 0, totalVotes: 0 })
+  const [hasVoted, setHasVoted] = useState(false)
+  const [votedFor, setVotedFor] = useState<string | null>(null)
+  const [spectatorCount, setSpectatorCount] = useState(0)
+
+  // Winner
   const [winner, setWinner] = useState<1 | 2 | null>(null)
 
   // Audio
   const [isMuted, setIsMuted] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const sounds = useSounds()
+
+  useEffect(() => {
+    // Preload sounds on mount
+    sounds.preload()
+  }, [])
+
+  useEffect(() => {
+    // Sync mute state with sound manager
+    sounds.setEnabled(!isMuted)
+  }, [isMuted])
 
   useEffect(() => {
     if (!user) {
@@ -75,12 +91,27 @@ export default function BattlePage() {
     }
   }, [battleId])
 
+  // Check if user is spectator
+  useEffect(() => {
+    async function checkSpectatorStatus() {
+      if (!user || !battleId || battleId.startsWith('demo-')) return
+
+      const spectator = await isUserSpectator(battleId, user.id)
+      if (spectator) {
+        setIsSpectator(true)
+      }
+    }
+    checkSpectatorStatus()
+  }, [battleId, user])
+
   // Countdown timer
   useEffect(() => {
     if (phase === 'countdown' && countdown > 0) {
+      sounds.play('countdown')
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
       return () => clearTimeout(timer)
     } else if (phase === 'countdown' && countdown === 0) {
+      sounds.play('round_start')
       startTurn()
     }
   }, [phase, countdown])
@@ -95,11 +126,35 @@ export default function BattlePage() {
     }
   }, [phase, timer])
 
+  // Poll spectator count
+  useEffect(() => {
+    if (battleId.startsWith('demo-')) return
+
+    const interval = setInterval(async () => {
+      const count = await getSpectatorCount(battleId)
+      setSpectatorCount(count)
+    }, 5000)
+
+    return () => clearInterval(interval)
+  }, [battleId])
+
   function setupDemoBattle() {
-    setPlayer1(user)
+    const demoPlayer1 = isSpectator ? {
+      id: 'demo-player1',
+      username: 'MC_Fire',
+      avatar_url: null,
+      elo_rating: 1100,
+      wins: 12,
+      losses: 4,
+      total_battles: 16,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } : user
+
+    setPlayer1(demoPlayer1)
     setPlayer2({
       id: 'demo-opponent',
-      username: 'MC_Challenger',
+      username: 'MC_Ice',
       avatar_url: null,
       elo_rating: 980,
       wins: 5,
@@ -109,6 +164,28 @@ export default function BattlePage() {
       updated_at: new Date().toISOString(),
     })
 
+    setBattle({
+      id: battleId,
+      room_code: 'DEMO',
+      status: 'ready',
+      player1_id: demoPlayer1?.id || '',
+      player2_id: 'demo-opponent',
+      winner_id: null,
+      current_round: 1,
+      total_rounds: 2,
+      beat_id: null,
+      player1_total_score: null,
+      player2_total_score: null,
+      created_at: new Date().toISOString(),
+      started_at: null,
+      completed_at: null,
+      voting_style: 'overall',
+      show_votes_during_battle: false,
+    })
+
+    setTotalRounds(2)
+    setSpectatorCount(isSpectator ? 1 : 0)
+
     // Start countdown after a brief moment
     setTimeout(() => {
       setPhase('countdown')
@@ -116,11 +193,23 @@ export default function BattlePage() {
   }
 
   async function loadBattle() {
-    const battle = await getBattle(battleId)
-    if (battle) {
-      setPlayer1(battle.player1 || null)
-      setPlayer2(battle.player2 || null)
-      
+    const loadedBattle = await getBattle(battleId)
+    if (loadedBattle) {
+      setBattle(loadedBattle)
+      setPlayer1(loadedBattle.player1 || null)
+      setPlayer2(loadedBattle.player2 || null)
+      setTotalRounds(loadedBattle.total_rounds)
+
+      // Check if user is a contestant
+      const isContestant = user?.id === loadedBattle.player1_id || user?.id === loadedBattle.player2_id
+      if (!isContestant) {
+        setIsSpectator(true)
+      }
+
+      // Get initial spectator count
+      const count = await getSpectatorCount(battleId)
+      setSpectatorCount(count)
+
       // Subscribe to battle updates
       const channel = supabase
         .channel(`battle-${battleId}`)
@@ -133,7 +222,6 @@ export default function BattlePage() {
             filter: `id=eq.${battleId}`
           },
           (payload) => {
-            // Handle battle updates
             if (payload.new.status === 'ready') {
               setPhase('countdown')
             }
@@ -141,7 +229,7 @@ export default function BattlePage() {
         )
         .subscribe()
 
-      if (battle.status === 'ready') {
+      if (loadedBattle.status === 'ready') {
         setPhase('countdown')
       }
     }
@@ -150,14 +238,16 @@ export default function BattlePage() {
   function startTurn() {
     setTimer(ROUND_DURATION)
     setPhase(currentTurn === 1 ? 'player1' : 'player2')
-    
-    // Auto-start recording for current player in demo mode
-    if (isDemo && currentTurn === 1) {
+
+    // Auto-start recording for current player (non-spectators)
+    if (!isSpectator && isDemo && currentTurn === 1) {
       startRecording()
     }
   }
 
   async function startRecording() {
+    if (isSpectator) return
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mediaRecorder = new MediaRecorder(stream)
@@ -172,7 +262,6 @@ export default function BattlePage() {
       setIsRecording(true)
     } catch (err) {
       console.error('Failed to start recording:', err)
-      // Continue without recording in demo
     }
   }
 
@@ -186,91 +275,126 @@ export default function BattlePage() {
 
   function endTurn() {
     stopRecording()
-
-    // Generate demo scores
-    const score = generateDemoScore()
-    
-    if (currentTurn === 1) {
-      setPlayer1Scores(prev => [...prev, score])
-    } else {
-      setPlayer2Scores(prev => [...prev, score])
-    }
+    sounds.play('round_end')
 
     // Check if round is complete (both players went)
     if (currentTurn === 2) {
       // Check if battle is complete
       if (currentRound >= totalRounds) {
-        setPhase('judging')
-        setTimeout(() => calculateWinner(), 2000)
+        // Go to voting phase
+        setPhase('voting')
+        setHasVoted(false)
+        setVotedFor(null)
+
+        // In demo mode, simulate voting results after delay
+        if (isDemo) {
+          setTimeout(() => {
+            const p1Votes = Math.floor(Math.random() * 10) + 5
+            const p2Votes = Math.floor(Math.random() * 10) + 5
+            setVoteCounts({
+              player1Votes: p1Votes,
+              player2Votes: p2Votes,
+              totalVotes: p1Votes + p2Votes
+            })
+          }, 2000)
+        }
       } else {
-        // Next round
-        setCurrentRound(currentRound + 1)
-        setCurrentTurn(1)
-        setCountdown(COUNTDOWN_DURATION)
-        setPhase('countdown')
+        // Per-round voting if enabled
+        if (battle?.voting_style === 'per_round') {
+          setPhase('voting')
+          setHasVoted(false)
+          setVotedFor(null)
+        } else {
+          // Next round
+          setCurrentRound(currentRound + 1)
+          setCurrentTurn(1)
+          setCountdown(COUNTDOWN_DURATION)
+          setPhase('countdown')
+        }
       }
     } else {
       // Switch to player 2
       setCurrentTurn(2)
       setCountdown(COUNTDOWN_DURATION)
       setPhase('countdown')
-      
+
       // In demo, simulate opponent's turn
       if (isDemo) {
         setTimeout(() => {
-          // Auto-end opponent's turn after random time
           setTimeout(() => {
             endTurn()
-          }, 5000 + Math.random() * 3000)
+          }, 3000 + Math.random() * 2000)
         }, COUNTDOWN_DURATION * 1000)
       }
     }
   }
 
-  function generateDemoScore(): RoundScore {
-    const randomScore = () => 5 + Math.random() * 5
-    const scores = {
-      rhyme: randomScore(),
-      flow: randomScore(),
-      punchlines: randomScore(),
-      delivery: randomScore(),
-      creativity: randomScore(),
-      rebuttal: randomScore(),
-      total: 0,
-      feedback: ''
-    }
-    
-    // Calculate weighted total
-    scores.total = (
-      scores.rhyme * 0.20 +
-      scores.flow * 0.25 +
-      scores.punchlines * 0.20 +
-      scores.delivery * 0.15 +
-      scores.creativity * 0.10 +
-      scores.rebuttal * 0.10
-    )
-    
-    scores.feedback = [
-      "Solid bars with decent wordplay!",
-      "Flow was tight, keep it up!",
-      "Some fire punchlines in there!",
-      "Good energy and delivery!",
-      "Creative approach to the beat!"
-    ][Math.floor(Math.random() * 5)]
+  async function handleVote(playerId: string) {
+    if (!isSpectator || hasVoted || !user || !battle) return
 
-    return scores
+    sounds.play('vote')
+    setVotedFor(playerId)
+    setHasVoted(true)
+
+    if (!isDemo) {
+      const roundNum = battle.voting_style === 'per_round' ? currentRound : null
+      await castVote(battleId, user.id, playerId, roundNum)
+
+      // Refresh vote counts
+      if (player1 && player2) {
+        const counts = await getVoteCounts(battleId, player1.id, player2.id, roundNum)
+        setVoteCounts(counts)
+      }
+    } else {
+      // Demo: increment vote count
+      setVoteCounts(prev => ({
+        player1Votes: prev.player1Votes + (playerId === player1?.id ? 1 : 0),
+        player2Votes: prev.player2Votes + (playerId === player2?.id ? 1 : 0),
+        totalVotes: prev.totalVotes + 1
+      }))
+    }
+  }
+
+  function proceedFromVoting() {
+    if (currentRound >= totalRounds) {
+      // Battle complete - determine winner
+      calculateWinner()
+    } else {
+      // Next round
+      setCurrentRound(currentRound + 1)
+      setCurrentTurn(1)
+      setCountdown(COUNTDOWN_DURATION)
+      setPhase('countdown')
+    }
   }
 
   function calculateWinner() {
-    const p1Total = player1Scores.reduce((sum, s) => sum + s.total, 0)
-    const p2Total = player2Scores.reduce((sum, s) => sum + s.total, 0)
-    
-    setWinner(p1Total > p2Total ? 1 : 2)
+    // Winner is determined by votes
+    let winnerNum: 1 | 2
+    if (voteCounts.player1Votes > voteCounts.player2Votes) {
+      winnerNum = 1
+    } else if (voteCounts.player2Votes > voteCounts.player1Votes) {
+      winnerNum = 2
+    } else {
+      // Tie - could implement tiebreaker logic
+      winnerNum = Math.random() > 0.5 ? 1 : 2
+    }
+    setWinner(winnerNum)
+
+    // Play victory or defeat sound based on whether user won
+    const userIsWinner = (winnerNum === 1 && user?.id === player1?.id) ||
+                         (winnerNum === 2 && user?.id === player2?.id)
+    if (!isSpectator) {
+      sounds.play(userIsWinner ? 'victory' : 'defeat')
+    } else {
+      sounds.play('victory')
+    }
+
     setPhase('results')
   }
 
   function handleSkip() {
-    if (phase === 'player1' || phase === 'player2') {
+    if ((phase === 'player1' || phase === 'player2') && !isSpectator) {
       endTurn()
     }
   }
@@ -285,6 +409,9 @@ export default function BattlePage() {
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
+
+  const canVote = isSpectator && !hasVoted && phase === 'voting'
+  const showVotes = phase === 'voting' && (battle?.show_votes_during_battle || currentRound >= totalRounds)
 
   if (!user || !player1) {
     return (
@@ -302,15 +429,31 @@ export default function BattlePage() {
           <button onClick={handleExit} className="text-dark-400 hover:text-white">
             <ArrowLeft className="w-6 h-6" />
           </button>
-          
+
           <div className="text-center">
-            <div className="text-sm text-dark-400">Round {currentRound} of {totalRounds}</div>
-            <div className="font-bold">
+            <div className="flex items-center justify-center gap-2 text-sm text-dark-400">
+              <span>Round {currentRound} of {totalRounds}</span>
+              {spectatorCount > 0 && (
+                <>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Eye className="w-3 h-3" />
+                    {spectatorCount}
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="font-bold flex items-center justify-center gap-2">
+              {isSpectator && (
+                <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">
+                  SPECTATOR
+                </span>
+              )}
               {phase === 'waiting' && 'Waiting...'}
               {phase === 'countdown' && 'Get Ready!'}
               {phase === 'player1' && `${player1.username}'s Turn`}
               {phase === 'player2' && `${player2?.username}'s Turn`}
-              {phase === 'judging' && 'AI Judging...'}
+              {phase === 'voting' && 'Vote Now!'}
               {phase === 'results' && 'Battle Complete!'}
             </div>
           </div>
@@ -334,19 +477,29 @@ export default function BattlePage() {
             className="text-center"
           >
             <div className={cn(
-              "w-24 h-24 rounded-full border-4 overflow-hidden mx-auto mb-2",
-              phase === 'player1' ? 'border-fire-500 glow-fire' : 'border-dark-600'
-            )}>
+              "w-24 h-24 rounded-full border-4 overflow-hidden mx-auto mb-2 relative",
+              phase === 'player1' ? 'border-fire-500 glow-fire' : 'border-dark-600',
+              canVote && 'cursor-pointer hover:border-fire-400'
+            )}
+              onClick={() => canVote && handleVote(player1.id)}
+            >
               <img
                 src={getAvatarUrl(player1.username, player1.avatar_url)}
                 alt={player1.username}
                 className="w-full h-full object-cover"
               />
+              {votedFor === player1.id && (
+                <div className="absolute inset-0 bg-fire-500/50 flex items-center justify-center">
+                  <ThumbsUp className="w-8 h-8 text-white" />
+                </div>
+              )}
             </div>
             <p className="font-bold">{player1.username}</p>
-            <p className="text-sm text-fire-400">
-              {player1Scores.reduce((sum, s) => sum + s.total, 0).toFixed(1)} pts
-            </p>
+            {showVotes && (
+              <p className="text-sm text-fire-400 font-bold">
+                {voteCounts.player1Votes} votes
+              </p>
+            )}
           </motion.div>
 
           {/* VS / Timer */}
@@ -372,6 +525,14 @@ export default function BattlePage() {
               >
                 {countdown}
               </motion.div>
+            ) : phase === 'voting' ? (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="text-4xl"
+              >
+                <Vote className="w-16 h-16 text-gold-400 mx-auto" />
+              </motion.div>
             ) : (
               <div className="text-4xl font-display text-gold-400 vs-text">VS</div>
             )}
@@ -386,24 +547,34 @@ export default function BattlePage() {
             className="text-center"
           >
             <div className={cn(
-              "w-24 h-24 rounded-full border-4 overflow-hidden mx-auto mb-2",
-              phase === 'player2' ? 'border-ice-500 glow-ice' : 'border-dark-600'
-            )}>
+              "w-24 h-24 rounded-full border-4 overflow-hidden mx-auto mb-2 relative",
+              phase === 'player2' ? 'border-ice-500 glow-ice' : 'border-dark-600',
+              canVote && 'cursor-pointer hover:border-ice-400'
+            )}
+              onClick={() => canVote && player2 && handleVote(player2.id)}
+            >
               <img
                 src={getAvatarUrl(player2?.username || 'Opponent', player2?.avatar_url)}
                 alt={player2?.username || 'Opponent'}
                 className="w-full h-full object-cover"
               />
+              {votedFor === player2?.id && (
+                <div className="absolute inset-0 bg-ice-500/50 flex items-center justify-center">
+                  <ThumbsUp className="w-8 h-8 text-white" />
+                </div>
+              )}
             </div>
             <p className="font-bold">{player2?.username || 'Opponent'}</p>
-            <p className="text-sm text-ice-400">
-              {player2Scores.reduce((sum, s) => sum + s.total, 0).toFixed(1)} pts
-            </p>
+            {showVotes && (
+              <p className="text-sm text-ice-400 font-bold">
+                {voteCounts.player2Votes} votes
+              </p>
+            )}
           </motion.div>
         </div>
 
-        {/* Recording Indicator */}
-        {isRecording && (
+        {/* Recording Indicator (for contestants) */}
+        {isRecording && !isSpectator && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -414,16 +585,105 @@ export default function BattlePage() {
           </motion.div>
         )}
 
-        {/* Judging Phase */}
-        {phase === 'judging' && (
+        {/* Spectator Watching Indicator */}
+        {isSpectator && (phase === 'player1' || phase === 'player2') && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 bg-purple-500/20 border border-purple-500/30 rounded-full px-6 py-3 mb-6"
+          >
+            <Eye className="w-5 h-5 text-purple-400" />
+            <span className="text-purple-400 font-medium">Watching live...</span>
+          </motion.div>
+        )}
+
+        {/* Voting Phase */}
+        {phase === 'voting' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center"
+            className="text-center max-w-md w-full"
           >
-            <div className="w-16 h-16 border-4 border-gold-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">AI Judges Deliberating...</h2>
-            <p className="text-dark-400">Analyzing rhymes, flow, and punchlines</p>
+            {isSpectator ? (
+              <>
+                {!hasVoted ? (
+                  <>
+                    <h2 className="text-2xl font-bold mb-2">Cast Your Vote!</h2>
+                    <p className="text-dark-400 mb-6">
+                      Click on the rapper you think won {battle?.voting_style === 'per_round' ? 'this round' : 'the battle'}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      <button
+                        onClick={() => handleVote(player1.id)}
+                        className="p-4 bg-fire-500/20 border border-fire-500/30 rounded-xl hover:bg-fire-500/30 transition-all"
+                      >
+                        <img
+                          src={getAvatarUrl(player1.username, player1.avatar_url)}
+                          alt={player1.username}
+                          className="w-16 h-16 rounded-full mx-auto mb-2"
+                        />
+                        <p className="font-bold">{player1.username}</p>
+                      </button>
+
+                      <button
+                        onClick={() => player2 && handleVote(player2.id)}
+                        className="p-4 bg-ice-500/20 border border-ice-500/30 rounded-xl hover:bg-ice-500/30 transition-all"
+                      >
+                        <img
+                          src={getAvatarUrl(player2?.username || 'Opponent', player2?.avatar_url)}
+                          alt={player2?.username || 'Opponent'}
+                          className="w-16 h-16 rounded-full mx-auto mb-2"
+                        />
+                        <p className="font-bold">{player2?.username}</p>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-green-400 text-xl font-bold mb-2">Vote Cast!</div>
+                    <p className="text-dark-400 mb-4">
+                      You voted for {votedFor === player1.id ? player1.username : player2?.username}
+                    </p>
+                    {showVotes && (
+                      <div className="bg-dark-800/50 rounded-xl p-4 mb-4">
+                        <p className="text-sm text-dark-400 mb-2">Current Results</p>
+                        <div className="flex justify-between">
+                          <span className="text-fire-400">{player1.username}: {voteCounts.player1Votes}</span>
+                          <span className="text-ice-400">{player2?.username}: {voteCounts.player2Votes}</span>
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-dark-400 text-sm">Waiting for voting to end...</p>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold mb-2">Spectators are Voting</h2>
+                <p className="text-dark-400 mb-4">Wait for the audience to decide...</p>
+                <div className="w-12 h-12 border-4 border-gold-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                {showVotes && (
+                  <div className="bg-dark-800/50 rounded-xl p-4">
+                    <p className="text-sm text-dark-400 mb-2">Current Votes</p>
+                    <div className="flex justify-between text-lg font-bold">
+                      <span className="text-fire-400">{player1.username}: {voteCounts.player1Votes}</span>
+                      <span className="text-ice-400">{player2?.username}: {voteCounts.player2Votes}</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Continue button (for demo or battle creator) */}
+            {(isDemo || (!isSpectator && user?.id === battle?.player1_id)) && (
+              <button
+                onClick={proceedFromVoting}
+                className="btn-fire w-full mt-6"
+              >
+                {currentRound >= totalRounds ? 'See Results' : 'Next Round'}
+              </button>
+            )}
           </motion.div>
         )}
 
@@ -435,49 +695,60 @@ export default function BattlePage() {
             className="text-center max-w-md w-full"
           >
             <div className="text-6xl mb-4">
-              {winner === 1 && user.id === player1.id ? '🏆' : winner === 2 && user.id === player2?.id ? '🏆' : '😔'}
+              {winner === 1 && user?.id === player1.id ? '🏆' : winner === 2 && user?.id === player2?.id ? '🏆' : isSpectator ? '🎉' : '😔'}
             </div>
-            
+
             <h2 className="text-3xl font-bold mb-2">
               {winner === 1 ? player1.username : player2?.username} Wins!
             </h2>
-            
+
             <div className="card mt-6 text-left">
-              <h3 className="font-bold mb-4">Final Scores</h3>
-              
+              <h3 className="font-bold mb-4 flex items-center gap-2">
+                <Vote className="w-5 h-5" />
+                Final Vote Count
+              </h3>
+
               <div className="space-y-4">
                 <div className={cn(
                   "p-4 rounded-xl",
                   winner === 1 ? 'bg-fire-500/20 border border-fire-500/30' : 'bg-dark-700'
                 )}>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium">{player1.username}</span>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={getAvatarUrl(player1.username, player1.avatar_url)}
+                        alt={player1.username}
+                        className="w-10 h-10 rounded-full"
+                      />
+                      <span className="font-medium">{player1.username}</span>
+                    </div>
                     <span className="text-2xl font-bold">
-                      {player1Scores.reduce((sum, s) => sum + s.total, 0).toFixed(1)}
+                      {voteCounts.player1Votes} votes
                     </span>
                   </div>
-                  {player1Scores.map((score, i) => (
-                    <div key={i} className="text-sm text-dark-400">
-                      Round {i + 1}: {score.total.toFixed(1)} - {score.feedback}
-                    </div>
-                  ))}
                 </div>
 
                 <div className={cn(
                   "p-4 rounded-xl",
                   winner === 2 ? 'bg-ice-500/20 border border-ice-500/30' : 'bg-dark-700'
                 )}>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium">{player2?.username}</span>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={getAvatarUrl(player2?.username || 'Opponent', player2?.avatar_url)}
+                        alt={player2?.username || 'Opponent'}
+                        className="w-10 h-10 rounded-full"
+                      />
+                      <span className="font-medium">{player2?.username}</span>
+                    </div>
                     <span className="text-2xl font-bold">
-                      {player2Scores.reduce((sum, s) => sum + s.total, 0).toFixed(1)}
+                      {voteCounts.player2Votes} votes
                     </span>
                   </div>
-                  {player2Scores.map((score, i) => (
-                    <div key={i} className="text-sm text-dark-400">
-                      Round {i + 1}: {score.total.toFixed(1)} - {score.feedback}
-                    </div>
-                  ))}
+                </div>
+
+                <div className="text-center text-dark-400 text-sm">
+                  Total votes: {voteCounts.totalVotes}
                 </div>
               </div>
             </div>
@@ -488,15 +759,15 @@ export default function BattlePage() {
           </motion.div>
         )}
 
-        {/* Controls */}
-        {(phase === 'player1' || phase === 'player2') && currentTurn === 1 && (
+        {/* Controls (for contestants only) */}
+        {!isSpectator && (phase === 'player1' || phase === 'player2') && (
           <div className="flex gap-4 mt-8">
             <button
               onClick={isRecording ? stopRecording : startRecording}
               className={cn(
                 "w-16 h-16 rounded-full flex items-center justify-center transition-all",
-                isRecording 
-                  ? 'bg-fire-500 glow-fire' 
+                isRecording
+                  ? 'bg-fire-500 glow-fire'
                   : 'bg-dark-700 hover:bg-dark-600'
               )}
             >
@@ -512,6 +783,32 @@ export default function BattlePage() {
           </div>
         )}
       </main>
+
+      {/* Spectator Chat */}
+      {user && phase !== 'waiting' && (
+        <SpectatorChat
+          battleId={battleId}
+          userId={user.id}
+          username={user.username}
+          isDemo={isDemo || battleId.startsWith('demo-')}
+        />
+      )}
     </div>
+  )
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-dark-950 flex items-center justify-center">
+      <div className="w-16 h-16 border-4 border-fire-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
+
+export default function BattlePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <BattleContent />
+    </Suspense>
   )
 }
