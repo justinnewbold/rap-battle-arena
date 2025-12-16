@@ -415,10 +415,10 @@ export default function BeatsPage() {
                       <Clock className="w-3 h-3" />
                       {formatDuration(beat.duration)}
                     </span>
-                    {'play_count' in beat && beat.play_count > 0 && (
+                    {'play_count' in beat && (beat as UserBeat).play_count > 0 && (
                       <>
                         <span>•</span>
-                        <span>{beat.play_count} plays</span>
+                        <span>{(beat as UserBeat).play_count} plays</span>
                       </>
                     )}
                   </div>
