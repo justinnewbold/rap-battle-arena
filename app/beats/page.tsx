@@ -16,6 +16,15 @@ import { cn } from '@/lib/utils'
 
 type TabType = 'my-beats' | 'public' | 'library'
 
+// Sample beat audio URLs (royalty-free samples)
+const SAMPLE_BEATS = {
+  hiphop1: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3',
+  hiphop2: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-04-740.mp3',
+  trap1: 'https://assets.mixkit.co/music/preview/mixkit-urban-fashion-hip-hop-654.mp3',
+  chill1: 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3',
+  boom1: 'https://assets.mixkit.co/music/preview/mixkit-sleepy-cat-135.mp3',
+}
+
 // Demo beats
 const DEMO_MY_BEATS: UserBeat[] = [
   {
@@ -23,7 +32,7 @@ const DEMO_MY_BEATS: UserBeat[] = [
     name: 'Summer Vibes',
     artist: 'You',
     bpm: 92,
-    audio_url: '',
+    audio_url: SAMPLE_BEATS.hiphop1,
     cover_url: null,
     duration: 180,
     is_premium: false,
@@ -36,7 +45,7 @@ const DEMO_MY_BEATS: UserBeat[] = [
     name: 'Midnight Flow',
     artist: 'You',
     bpm: 88,
-    audio_url: '',
+    audio_url: SAMPLE_BEATS.chill1,
     cover_url: null,
     duration: 200,
     is_premium: false,
@@ -97,9 +106,9 @@ export default function BeatsPage() {
       setMyBeats(DEMO_MY_BEATS)
       setPublicBeats([])
       setLibraryBeats([
-        { id: 'lib-1', name: 'Street Heat', artist: 'BeatMaster', bpm: 90, audio_url: '', cover_url: null, duration: 180, is_premium: false },
-        { id: 'lib-2', name: 'Night Vibes', artist: 'ProducerX', bpm: 85, audio_url: '', cover_url: null, duration: 200, is_premium: false },
-        { id: 'lib-3', name: 'Battle Ready', artist: 'HipHopKing', bpm: 95, audio_url: '', cover_url: null, duration: 160, is_premium: false },
+        { id: 'lib-1', name: 'Street Heat', artist: 'BeatMaster', bpm: 90, audio_url: SAMPLE_BEATS.hiphop2, cover_url: null, duration: 180, is_premium: false },
+        { id: 'lib-2', name: 'Night Vibes', artist: 'ProducerX', bpm: 85, audio_url: SAMPLE_BEATS.trap1, cover_url: null, duration: 200, is_premium: false },
+        { id: 'lib-3', name: 'Battle Ready', artist: 'HipHopKing', bpm: 95, audio_url: SAMPLE_BEATS.boom1, cover_url: null, duration: 160, is_premium: false },
       ])
     } else {
       const [userBeats, pubBeats, libBeats] = await Promise.all([
@@ -114,21 +123,49 @@ export default function BeatsPage() {
     setLoading(false)
   }
 
+  const [audioError, setAudioError] = useState<string | null>(null)
+  const [audioLoading, setAudioLoading] = useState(false)
+
   function toggleBeatPlay(beat: Beat | UserBeat) {
-    if (!beat.audio_url) return
+    if (!beat.audio_url) {
+      setAudioError('No audio available for this beat')
+      setTimeout(() => setAudioError(null), 3000)
+      return
+    }
 
     if (playingBeatId === beat.id) {
       if (audioRef) {
         audioRef.pause()
       }
       setPlayingBeatId(null)
+      setAudioLoading(false)
     } else {
       if (audioRef) {
         audioRef.pause()
       }
+      setAudioLoading(true)
+      setAudioError(null)
+
       const audio = new Audio(beat.audio_url)
       audio.loop = true
-      audio.play()
+
+      audio.oncanplaythrough = () => {
+        setAudioLoading(false)
+        audio.play().catch(err => {
+          console.error('Playback error:', err)
+          setAudioError('Failed to play audio. Please try again.')
+          setPlayingBeatId(null)
+          setAudioLoading(false)
+        })
+      }
+
+      audio.onerror = () => {
+        setAudioError('Failed to load audio file')
+        setPlayingBeatId(null)
+        setAudioLoading(false)
+      }
+
+      audio.load()
       setAudioRef(audio)
       setPlayingBeatId(beat.id)
     }
@@ -317,6 +354,21 @@ export default function BeatsPage() {
           </button>
         </div>
 
+        {/* Audio Error Toast */}
+        <AnimatePresence>
+          {audioError && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-red-500/90 text-white rounded-lg shadow-lg flex items-center gap-2"
+            >
+              <X className="w-4 h-4" />
+              {audioError}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
           <button
@@ -381,14 +433,19 @@ export default function BeatsPage() {
                 {/* Cover / Play Button */}
                 <button
                   onClick={() => toggleBeatPlay(beat)}
+                  disabled={audioLoading && playingBeatId === beat.id}
                   className={cn(
                     "w-14 h-14 rounded-xl flex items-center justify-center shrink-0 transition-all",
                     beat.cover_url ? 'bg-cover bg-center' : 'bg-purple-500/20',
-                    playingBeatId === beat.id && 'ring-2 ring-purple-500'
+                    playingBeatId === beat.id && 'ring-2 ring-purple-500',
+                    !beat.audio_url && 'opacity-50 cursor-not-allowed'
                   )}
                   style={beat.cover_url ? { backgroundImage: `url(${beat.cover_url})` } : {}}
+                  title={!beat.audio_url ? 'No audio available' : undefined}
                 >
-                  {playingBeatId === beat.id ? (
+                  {audioLoading && playingBeatId === beat.id ? (
+                    <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                  ) : playingBeatId === beat.id ? (
                     <Pause className="w-6 h-6 text-purple-400" />
                   ) : (
                     <Play className="w-6 h-6 text-purple-400 ml-1" />
