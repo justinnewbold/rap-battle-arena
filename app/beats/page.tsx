@@ -97,10 +97,16 @@ export default function BeatsPage() {
     if (isDemo) {
       setMyBeats(DEMO_MY_BEATS)
       setPublicBeats([])
+      // Use more demo beats from constants
       setLibraryBeats([
-        { id: 'lib-1', name: 'Street Heat', artist: 'BeatMaster', bpm: 90, audio_url: SAMPLE_BEATS.hiphop2, cover_url: null, duration: 180, is_premium: false },
-        { id: 'lib-2', name: 'Night Vibes', artist: 'ProducerX', bpm: 85, audio_url: SAMPLE_BEATS.trap1, cover_url: null, duration: 200, is_premium: false },
-        { id: 'lib-3', name: 'Battle Ready', artist: 'HipHopKing', bpm: 95, audio_url: SAMPLE_BEATS.boom1, cover_url: null, duration: 160, is_premium: false },
+        { id: 'lib-1', name: 'Street Heat', artist: 'BeatMaster', bpm: 90, audio_url: SAMPLE_BEATS.hiphop1, cover_url: null, duration: 180, is_premium: false },
+        { id: 'lib-2', name: 'Night Vibes', artist: 'ProducerX', bpm: 85, audio_url: SAMPLE_BEATS.chill1, cover_url: null, duration: 200, is_premium: false },
+        { id: 'lib-3', name: 'Battle Ready', artist: 'HipHopKing', bpm: 95, audio_url: SAMPLE_BEATS.hiphop2, cover_url: null, duration: 160, is_premium: false },
+        { id: 'lib-4', name: 'Underground Flow', artist: 'BeatMaster', bpm: 88, audio_url: SAMPLE_BEATS.trap1, cover_url: null, duration: 190, is_premium: false },
+        { id: 'lib-5', name: 'Deep Urban', artist: 'UrbanBeats', bpm: 92, audio_url: SAMPLE_BEATS.deep1, cover_url: null, duration: 175, is_premium: false },
+        { id: 'lib-6', name: 'Dream State', artist: 'CloudNine', bpm: 78, audio_url: SAMPLE_BEATS.dreamy1, cover_url: null, duration: 210, is_premium: false },
+        { id: 'lib-7', name: 'Game On', artist: 'TechFlow', bpm: 130, audio_url: SAMPLE_BEATS.gaming1, cover_url: null, duration: 165, is_premium: false },
+        { id: 'lib-8', name: 'Lo-Fi Chill', artist: 'ChillMaster', bpm: 75, audio_url: SAMPLE_BEATS.boom1, cover_url: null, duration: 195, is_premium: false },
       ])
     } else {
       const [userBeats, pubBeats, libBeats] = await Promise.all([

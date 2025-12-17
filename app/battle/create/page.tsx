@@ -54,27 +54,33 @@ function CreateBattleContent() {
   }, [audioRef])
 
   async function loadBeats() {
+    if (isDemo) {
+      // In demo mode, always use demo beats
+      setBeats([...DEMO_LIBRARY_BEATS] as Beat[])
+      setUserBeats([...DEMO_USER_BEATS] as UserBeat[])
+      return
+    }
+
     const [loadedBeats, loadedUserBeats] = await Promise.all([
       getBeats(),
-      user && !isDemo ? getUserBeats(user.id) : Promise.resolve([])
+      user ? getUserBeats(user.id) : Promise.resolve([])
     ])
 
-    setBeats(loadedBeats)
+    // Use loaded beats or fallback to demo
+    setBeats(loadedBeats.length > 0 ? loadedBeats : [...DEMO_LIBRARY_BEATS] as Beat[])
     setUserBeats(loadedUserBeats)
-
-    // Demo beats if none loaded
-    if (loadedBeats.length === 0) {
-      setBeats([...DEMO_LIBRARY_BEATS])
-    }
-
-    // Demo user beats
-    if (isDemo && loadedUserBeats.length === 0) {
-      setUserBeats([...DEMO_USER_BEATS] as UserBeat[])
-    }
   }
 
+  // Audio playback state
+  const [audioLoading, setAudioLoading] = useState(false)
+  const [audioError, setAudioError] = useState<string | null>(null)
+
   function toggleBeatPlay(beat: Beat) {
-    if (!beat.audio_url) return
+    if (!beat.audio_url) {
+      setAudioError('No audio available for this beat')
+      setTimeout(() => setAudioError(null), 3000)
+      return
+    }
 
     if (playingBeatId === beat.id) {
       // Stop playing
@@ -82,14 +88,38 @@ function CreateBattleContent() {
         audioRef.pause()
       }
       setPlayingBeatId(null)
+      setAudioLoading(false)
     } else {
       // Play new beat
       if (audioRef) {
         audioRef.pause()
       }
+
+      setAudioLoading(true)
+      setAudioError(null)
+
       const audio = new Audio(beat.audio_url)
       audio.loop = true
-      audio.play()
+      audio.volume = 0.5
+
+      audio.oncanplaythrough = () => {
+        setAudioLoading(false)
+        audio.play().catch(err => {
+          console.error('Playback error:', err)
+          setAudioError('Failed to play audio. Click to try again.')
+          setPlayingBeatId(null)
+          setAudioLoading(false)
+        })
+      }
+
+      audio.onerror = () => {
+        console.error('Audio load error for:', beat.audio_url)
+        setAudioError('Failed to load audio file')
+        setPlayingBeatId(null)
+        setAudioLoading(false)
+      }
+
+      audio.load()
       setAudioRef(audio)
       setPlayingBeatId(beat.id)
     }
@@ -302,6 +332,13 @@ function CreateBattleContent() {
                   Battle Beat (Optional)
                 </label>
 
+                {/* Audio Error Message */}
+                {audioError && (
+                  <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                    {audioError}
+                  </div>
+                )}
+
                 {/* Beat Section Tabs */}
                 {userBeats.length > 0 && (
                   <div className="flex gap-2 mb-3">
@@ -330,7 +367,7 @@ function CreateBattleContent() {
                   </div>
                 )}
 
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-dark-600">
                   {/* No beat option */}
                   <button
                     onClick={() => setSelectedBeat(null)}
@@ -363,6 +400,7 @@ function CreateBattleContent() {
                     >
                       <button
                         onClick={() => toggleBeatPlay(beat)}
+                        disabled={audioLoading && playingBeatId === beat.id}
                         className={cn(
                           "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors",
                           playingBeatId === beat.id
@@ -370,7 +408,9 @@ function CreateBattleContent() {
                             : 'bg-dark-600 hover:bg-dark-500'
                         )}
                       >
-                        {playingBeatId === beat.id ? (
+                        {audioLoading && playingBeatId === beat.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : playingBeatId === beat.id ? (
                           <Pause className="w-5 h-5" />
                         ) : (
                           <Play className="w-5 h-5 ml-0.5" />
@@ -410,6 +450,7 @@ function CreateBattleContent() {
                       {/* Play button */}
                       <button
                         onClick={() => toggleBeatPlay(beat)}
+                        disabled={audioLoading && playingBeatId === beat.id}
                         className={cn(
                           "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors",
                           playingBeatId === beat.id
@@ -417,7 +458,9 @@ function CreateBattleContent() {
                             : 'bg-dark-600 hover:bg-dark-500'
                         )}
                       >
-                        {playingBeatId === beat.id ? (
+                        {audioLoading && playingBeatId === beat.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : playingBeatId === beat.id ? (
                           <Pause className="w-5 h-5" />
                         ) : (
                           <Play className="w-5 h-5 ml-0.5" />
