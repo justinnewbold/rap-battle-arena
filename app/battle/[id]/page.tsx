@@ -360,7 +360,8 @@ function BattleContent() {
       // Battle complete - determine winner
       calculateWinner()
     } else {
-      // Next round
+      // Next round - reset vote counts for per-round voting
+      setVoteCounts({ player1Votes: 0, player2Votes: 0, totalVotes: 0 })
       setCurrentRound(currentRound + 1)
       setCurrentTurn(1)
       setCountdown(COUNTDOWN_DURATION)

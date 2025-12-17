@@ -10,7 +10,7 @@ import {
   Search, BarChart3
 } from 'lucide-react'
 import { useUserStore, useBattleStore, useTutorialStore, DEMO_USER } from '@/lib/store'
-import { supabase, getLeaderboard, getRecentBattles, Profile, Battle } from '@/lib/supabase'
+import { supabase, getLeaderboard, getRecentBattles, Profile, Battle, getUnreadNotificationCount } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, getWinRate, formatDate, generateRoomCode } from '@/lib/utils'
 
 export default function DashboardPage() {
@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'home' | 'battle' | 'profile'>('home')
   const [joinCode, setJoinCode] = useState('')
   const [showJoinModal, setShowJoinModal] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     if (!user) {
@@ -38,12 +39,14 @@ export default function DashboardPage() {
   }, [user, router, hasCompletedTutorial])
 
   async function loadData() {
-    const [leaders, battles] = await Promise.all([
+    const [leaders, battles, unread] = await Promise.all([
       getLeaderboard(10),
-      user ? getRecentBattles(user.id, 5) : []
+      user ? getRecentBattles(user.id, 5) : [],
+      user && !isDemo ? getUnreadNotificationCount(user.id) : 3 // Demo shows 3 unread
     ])
     setLeaderboard(leaders)
     setRecentBattles(battles)
+    setUnreadCount(unread)
   }
 
   async function handleLogout() {
@@ -105,7 +108,13 @@ export default function DashboardPage() {
               className="relative text-dark-400 hover:text-white transition-colors p-2"
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-fire-500 rounded-full" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[8px] h-2 bg-fire-500 rounded-full flex items-center justify-center">
+                  {unreadCount > 9 && (
+                    <span className="text-[8px] text-white font-bold px-1">9+</span>
+                  )}
+                </span>
+              )}
             </button>
             <button
               onClick={() => router.push('/settings')}

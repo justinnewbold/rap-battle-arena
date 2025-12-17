@@ -202,9 +202,16 @@ export default function BeatsPage() {
 
     // Get audio duration
     const audio = new Audio()
-    audio.src = URL.createObjectURL(file)
+    const blobUrl = URL.createObjectURL(file)
+    audio.src = blobUrl
     audio.onloadedmetadata = () => {
       setAudioDuration(Math.round(audio.duration))
+      // Clean up blob URL after getting duration
+      URL.revokeObjectURL(blobUrl)
+    }
+    audio.onerror = () => {
+      // Clean up on error too
+      URL.revokeObjectURL(blobUrl)
     }
 
     // Auto-fill name from filename
