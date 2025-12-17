@@ -13,17 +13,9 @@ import {
   uploadBeat, deleteBeat, uploadBeatFile, uploadBeatCover
 } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import { SAMPLE_BEATS } from '@/lib/constants'
 
 type TabType = 'my-beats' | 'public' | 'library'
-
-// Sample beat audio URLs (royalty-free samples)
-const SAMPLE_BEATS = {
-  hiphop1: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3',
-  hiphop2: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-04-740.mp3',
-  trap1: 'https://assets.mixkit.co/music/preview/mixkit-urban-fashion-hip-hop-654.mp3',
-  chill1: 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3',
-  boom1: 'https://assets.mixkit.co/music/preview/mixkit-sleepy-cat-135.mp3',
-}
 
 // Demo beats
 const DEMO_MY_BEATS: UserBeat[] = [

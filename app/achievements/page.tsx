@@ -11,7 +11,7 @@ import {
   ACHIEVEMENT_INFO,
   getUserAchievements
 } from '@/lib/supabase'
-import { cn } from '@/lib/utils'
+import { cn, formatDateLong } from '@/lib/utils'
 
 // Demo achievements
 const DEMO_ACHIEVEMENTS: Achievement[] = [
@@ -29,11 +29,6 @@ const RARITY_COLORS = {
 
 const RARITY_ORDER = ['legendary', 'epic', 'rare', 'common'] as const
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 export default function AchievementsPage() {
   const router = useRouter()
   const { user, isDemo } = useUserStore()
@@ -50,12 +45,16 @@ export default function AchievementsPage() {
   }, [user, router])
 
   async function loadAchievements() {
-    setLoading(false)
-    if (isDemo) {
-      setAchievements(DEMO_ACHIEVEMENTS)
-    } else {
-      const data = await getUserAchievements(user!.id)
-      setAchievements(data)
+    setLoading(true)
+    try {
+      if (isDemo) {
+        setAchievements(DEMO_ACHIEVEMENTS)
+      } else {
+        const data = await getUserAchievements(user!.id)
+        setAchievements(data)
+      }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -227,7 +226,7 @@ export default function AchievementsPage() {
 
                     {unlocked && achievement && (
                       <p className="text-xs text-dark-500 mt-2">
-                        Unlocked {formatDate(achievement.unlocked_at)}
+                        Unlocked {formatDateLong(achievement.unlocked_at)}
                       </p>
                     )}
                   </div>

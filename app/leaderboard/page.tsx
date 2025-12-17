@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Trophy, Medal, Crown, TrendingUp, Swords, ArrowLeft } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { getLeaderboard, Profile } from '@/lib/supabase'
+import { getLeaderboard, Profile, LeaderboardTimeframe } from '@/lib/supabase'
 import { getAvatarUrl, getEloRank, formatElo, cn } from '@/lib/utils'
 
 export default function LeaderboardPage() {
@@ -13,7 +13,7 @@ export default function LeaderboardPage() {
   const { user } = useUserStore()
   const [players, setPlayers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
-  const [timeframe, setTimeframe] = useState<'all' | 'month' | 'week'>('all')
+  const [timeframe, setTimeframe] = useState<LeaderboardTimeframe>('all')
 
   useEffect(() => {
     loadLeaderboard()
@@ -21,7 +21,7 @@ export default function LeaderboardPage() {
 
   async function loadLeaderboard() {
     setLoading(true)
-    const data = await getLeaderboard(50)
+    const data = await getLeaderboard(50, timeframe)
     setPlayers(data)
     setLoading(false)
   }
@@ -70,14 +70,14 @@ export default function LeaderboardPage() {
 
         {/* Timeframe Tabs */}
         <div className="flex gap-2 mb-6">
-          {[
+          {([
             { id: 'all', label: 'All Time' },
             { id: 'month', label: 'This Month' },
             { id: 'week', label: 'This Week' },
-          ].map((tab) => (
+          ] as const).map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setTimeframe(tab.id as any)}
+              onClick={() => setTimeframe(tab.id)}
               className={cn(
                 "px-4 py-2 rounded-lg font-medium transition-all",
                 timeframe === tab.id

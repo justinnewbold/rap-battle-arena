@@ -125,13 +125,30 @@ export async function updateProfile(userId: string, updates: Partial<Profile>): 
   return data
 }
 
-export async function getLeaderboard(limit: number = 10): Promise<Profile[]> {
-  const { data, error } = await supabase
+export type LeaderboardTimeframe = 'all' | 'month' | 'week'
+
+export async function getLeaderboard(limit: number = 10, timeframe: LeaderboardTimeframe = 'all'): Promise<Profile[]> {
+  let query = supabase
     .from('profiles')
     .select('*')
     .order('elo_rating', { ascending: false })
     .limit(limit)
-  
+
+  // Filter by timeframe based on account creation or recent activity
+  // For 'month' and 'week', we filter profiles that have been updated recently
+  // (indicating recent battle activity)
+  if (timeframe === 'month') {
+    const monthAgo = new Date()
+    monthAgo.setMonth(monthAgo.getMonth() - 1)
+    query = query.gte('updated_at', monthAgo.toISOString())
+  } else if (timeframe === 'week') {
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    query = query.gte('updated_at', weekAgo.toISOString())
+  }
+
+  const { data, error } = await query
+
   if (error) {
     console.error('Error fetching leaderboard:', error)
     return []
@@ -1424,6 +1441,23 @@ export async function searchCrews(query: string): Promise<Crew[]> {
 
   if (error) {
     console.error('Error searching crews:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function searchUsers(query: string): Promise<Profile[]> {
+  if (!query || query.length < 2) return []
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .ilike('username', `%${query}%`)
+    .order('elo_rating', { ascending: false })
+    .limit(20)
+
+  if (error) {
+    console.error('Error searching users:', error)
     return []
   }
   return data || []

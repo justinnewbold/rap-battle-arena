@@ -7,17 +7,9 @@ import { Copy, Check, Users, ArrowLeft, Loader2, Settings, Vote, Eye, EyeOff, Mu
 import { useUserStore } from '@/lib/store'
 import { supabase, createBattle, Battle, CreateBattleOptions, getBeats, Beat, getUserBeats, UserBeat } from '@/lib/supabase'
 import { getAvatarUrl, generateRoomCode, cn } from '@/lib/utils'
+import { SAMPLE_BEATS, DEMO_LIBRARY_BEATS, DEMO_USER_BEATS } from '@/lib/constants'
 
 type Step = 'settings' | 'waiting'
-
-// Sample beat audio URLs (royalty-free samples)
-const SAMPLE_BEATS = {
-  hiphop1: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3',
-  hiphop2: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-04-740.mp3',
-  trap1: 'https://assets.mixkit.co/music/preview/mixkit-urban-fashion-hip-hop-654.mp3',
-  chill1: 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3',
-  boom1: 'https://assets.mixkit.co/music/preview/mixkit-sleepy-cat-135.mp3',
-}
 
 function CreateBattleContent() {
   const router = useRouter()
@@ -72,19 +64,12 @@ function CreateBattleContent() {
 
     // Demo beats if none loaded
     if (loadedBeats.length === 0) {
-      setBeats([
-        { id: 'demo-1', name: 'Street Heat', artist: 'BeatMaster', bpm: 90, audio_url: SAMPLE_BEATS.hiphop1, cover_url: null, duration: 180, is_premium: false },
-        { id: 'demo-2', name: 'Night Vibes', artist: 'ProducerX', bpm: 85, audio_url: SAMPLE_BEATS.chill1, cover_url: null, duration: 200, is_premium: false },
-        { id: 'demo-3', name: 'Battle Ready', artist: 'HipHopKing', bpm: 95, audio_url: SAMPLE_BEATS.hiphop2, cover_url: null, duration: 160, is_premium: false },
-        { id: 'demo-4', name: 'Underground Flow', artist: 'BeatMaster', bpm: 88, audio_url: SAMPLE_BEATS.trap1, cover_url: null, duration: 190, is_premium: true },
-      ])
+      setBeats([...DEMO_LIBRARY_BEATS])
     }
 
     // Demo user beats
     if (isDemo && loadedUserBeats.length === 0) {
-      setUserBeats([
-        { id: 'my-demo-1', name: 'My Custom Beat', artist: 'You', bpm: 92, audio_url: SAMPLE_BEATS.boom1, cover_url: null, duration: 180, is_premium: false, uploaded_by: 'demo', is_public: false, play_count: 5 },
-      ])
+      setUserBeats([...DEMO_USER_BEATS] as UserBeat[])
     }
   }
 
@@ -171,17 +156,25 @@ function CreateBattleContent() {
     router.push(`/battle/demo-${Date.now()}`)
   }
 
-  function handleCancel() {
+  async function handleCancel() {
     if (battle) {
-      supabase.from('battles').delete().eq('id', battle.id)
+      try {
+        await supabase.from('battles').delete().eq('id', battle.id)
+      } catch (err) {
+        console.error('Error deleting battle:', err)
+      }
     }
     router.push('/dashboard')
   }
 
-  function handleBack() {
+  async function handleBack() {
     if (step === 'waiting') {
       if (battle) {
-        supabase.from('battles').delete().eq('id', battle.id)
+        try {
+          await supabase.from('battles').delete().eq('id', battle.id)
+        } catch (err) {
+          console.error('Error deleting battle:', err)
+        }
         setBattle(null)
       }
       setStep('settings')
