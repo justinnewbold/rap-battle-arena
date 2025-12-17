@@ -4,71 +4,21 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
-  ArrowLeft, Play, Pause, Volume2, VolumeX, SkipBack, SkipForward,
+  ArrowLeft, Play, Pause, Volume2, VolumeX,
   Check, X, AlertCircle, Loader2, Music, Mic
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getBeatGenerator, BEAT_PATTERNS, BeatPattern } from '@/lib/beat-generator'
 
-// Sample audio tracks for testing
-const TEST_TRACKS = [
-  {
-    id: 'test-1',
-    name: 'Hip Hop Beat 1',
-    artist: 'Mixkit',
-    url: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-02-738.mp3',
-    category: 'Hip Hop'
-  },
-  {
-    id: 'test-2',
-    name: 'Hip Hop Beat 2',
-    artist: 'Mixkit',
-    url: 'https://assets.mixkit.co/music/preview/mixkit-hip-hop-04-740.mp3',
-    category: 'Hip Hop'
-  },
-  {
-    id: 'test-3',
-    name: 'Urban Fashion',
-    artist: 'Mixkit',
-    url: 'https://assets.mixkit.co/music/preview/mixkit-urban-fashion-hip-hop-654.mp3',
-    category: 'Trap'
-  },
-  {
-    id: 'test-4',
-    name: 'Serene View',
-    artist: 'Mixkit',
-    url: 'https://assets.mixkit.co/music/preview/mixkit-serene-view-443.mp3',
-    category: 'Chill'
-  },
-  {
-    id: 'test-5',
-    name: 'Sleepy Cat',
-    artist: 'Mixkit',
-    url: 'https://assets.mixkit.co/music/preview/mixkit-sleepy-cat-135.mp3',
-    category: 'Lo-Fi'
-  },
-]
-
-type AudioStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
-
-interface TestResult {
-  trackId: string
-  status: 'success' | 'error'
-  message: string
-  loadTime?: number
-}
+type AudioStatus = 'idle' | 'playing' | 'paused'
 
 export default function TestAudioPage() {
   const router = useRouter()
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [currentTrack, setCurrentTrack] = useState<typeof TEST_TRACKS[0] | null>(null)
+  const [currentBeat, setCurrentBeat] = useState<BeatPattern | null>(null)
   const [audioStatus, setAudioStatus] = useState<AudioStatus>('idle')
   const [volume, setVolume] = useState(0.7)
   const [isMuted, setIsMuted] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [testResults, setTestResults] = useState<TestResult[]>([])
-  const [isRunningTests, setIsRunningTests] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [audioWorking, setAudioWorking] = useState<boolean | null>(null)
 
   // Microphone test state
   const [micStatus, setMicStatus] = useState<'idle' | 'requesting' | 'active' | 'error'>('idle')
@@ -79,146 +29,54 @@ export default function TestAudioPage() {
 
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current.src = ''
-      }
+      getBeatGenerator().stop()
       stopMicTest()
     }
   }, [])
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume
-    }
+    getBeatGenerator().setVolume(isMuted ? 0 : volume)
   }, [volume, isMuted])
 
-  function playTrack(track: typeof TEST_TRACKS[0]) {
-    if (audioRef.current) {
-      audioRef.current.pause()
-    }
+  function playBeat(beat: BeatPattern) {
+    const generator = getBeatGenerator()
 
-    setCurrentTrack(track)
-    setAudioStatus('loading')
-    setErrorMessage(null)
-    setProgress(0)
-
-    const audio = new Audio(track.url)
-    audio.volume = isMuted ? 0 : volume
-
-    audio.onloadedmetadata = () => {
-      setDuration(audio.duration)
-    }
-
-    audio.oncanplaythrough = () => {
-      setAudioStatus('playing')
-      audio.play().catch(err => {
-        console.error('Playback error:', err)
-        setAudioStatus('error')
-        setErrorMessage('Failed to play audio. Check browser autoplay settings.')
-      })
-    }
-
-    audio.ontimeupdate = () => {
-      setProgress(audio.currentTime)
-    }
-
-    audio.onended = () => {
+    if (currentBeat?.name === beat.name && audioStatus === 'playing') {
+      // Pause current beat
+      generator.stop()
       setAudioStatus('paused')
-      setProgress(0)
+      return
     }
 
-    audio.onerror = () => {
-      setAudioStatus('error')
-      setErrorMessage('Failed to load audio file. Check your network connection.')
-    }
+    // Stop any current playback
+    generator.stop()
 
-    audioRef.current = audio
-    audio.load()
+    // Start new beat
+    setCurrentBeat(beat)
+    generator.start(beat)
+    generator.setVolume(isMuted ? 0 : volume)
+    setAudioStatus('playing')
+    setAudioWorking(true)
+  }
+
+  function stopBeat() {
+    getBeatGenerator().stop()
+    setAudioStatus('idle')
+    setCurrentBeat(null)
   }
 
   function togglePlayPause() {
-    if (!audioRef.current || !currentTrack) return
+    if (!currentBeat) return
+    const generator = getBeatGenerator()
 
     if (audioStatus === 'playing') {
-      audioRef.current.pause()
+      generator.stop()
       setAudioStatus('paused')
-    } else if (audioStatus === 'paused') {
-      audioRef.current.play().catch(err => {
-        console.error('Playback error:', err)
-        setErrorMessage('Failed to resume playback')
-      })
+    } else {
+      generator.start(currentBeat)
+      generator.setVolume(isMuted ? 0 : volume)
       setAudioStatus('playing')
     }
-  }
-
-  function seekTo(time: number) {
-    if (audioRef.current) {
-      audioRef.current.currentTime = time
-      setProgress(time)
-    }
-  }
-
-  function skipTrack(direction: 'prev' | 'next') {
-    if (!currentTrack) return
-    const currentIndex = TEST_TRACKS.findIndex(t => t.id === currentTrack.id)
-    let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1
-    if (newIndex >= TEST_TRACKS.length) newIndex = 0
-    if (newIndex < 0) newIndex = TEST_TRACKS.length - 1
-    playTrack(TEST_TRACKS[newIndex])
-  }
-
-  async function runAllTests() {
-    setIsRunningTests(true)
-    setTestResults([])
-
-    for (const track of TEST_TRACKS) {
-      const startTime = Date.now()
-      try {
-        const result = await testTrack(track)
-        const loadTime = Date.now() - startTime
-        setTestResults(prev => [...prev, {
-          trackId: track.id,
-          status: result ? 'success' : 'error',
-          message: result ? `Loaded successfully in ${loadTime}ms` : 'Failed to load',
-          loadTime
-        }])
-      } catch (err) {
-        setTestResults(prev => [...prev, {
-          trackId: track.id,
-          status: 'error',
-          message: 'Error loading track'
-        }])
-      }
-      // Small delay between tests
-      await new Promise(resolve => setTimeout(resolve, 500))
-    }
-
-    setIsRunningTests(false)
-  }
-
-  function testTrack(track: typeof TEST_TRACKS[0]): Promise<boolean> {
-    return new Promise((resolve) => {
-      const audio = new Audio()
-      const timeout = setTimeout(() => {
-        audio.src = ''
-        resolve(false)
-      }, 10000)
-
-      audio.oncanplaythrough = () => {
-        clearTimeout(timeout)
-        audio.src = ''
-        resolve(true)
-      }
-
-      audio.onerror = () => {
-        clearTimeout(timeout)
-        resolve(false)
-      }
-
-      audio.src = track.url
-      audio.load()
-    })
   }
 
   async function startMicTest() {
@@ -266,12 +124,6 @@ export default function TestAudioPage() {
     setMicLevel(0)
   }
 
-  function formatTime(seconds: number) {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
   return (
     <div className="min-h-screen bg-dark-950">
       <div className="absolute inset-0 bg-gradient-to-br from-purple-900/10 via-dark-950 to-ice-900/10" />
@@ -280,7 +132,10 @@ export default function TestAudioPage() {
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => {
+              getBeatGenerator().stop()
+              router.push('/dashboard')
+            }}
             className="text-dark-400 hover:text-white"
           >
             <ArrowLeft className="w-6 h-6" />
@@ -303,179 +158,119 @@ export default function TestAudioPage() {
           >
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
               <Music className="w-5 h-5 text-purple-400" />
-              Audio Playback Test
+              Beat Playback Test
             </h2>
 
-            {/* Track List */}
+            <p className="text-dark-400 mb-4">
+              Click on any beat to test your audio output. These beats use the Web Audio API
+              and will play during your rap battles.
+            </p>
+
+            {/* Beat List */}
             <div className="space-y-2 mb-6">
-              {TEST_TRACKS.map((track) => {
-                const result = testResults.find(r => r.trackId === track.id)
-                return (
-                  <div
-                    key={track.id}
-                    onClick={() => !isRunningTests && playTrack(track)}
-                    className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all",
-                      currentTrack?.id === track.id
-                        ? 'bg-purple-500/20 border border-purple-500/30'
-                        : 'bg-dark-800 hover:bg-dark-700',
-                      isRunningTests && 'opacity-50 cursor-not-allowed'
-                    )}
-                  >
-                    <div className={cn(
-                      "w-10 h-10 rounded-lg flex items-center justify-center",
-                      currentTrack?.id === track.id ? 'bg-purple-500' : 'bg-dark-700'
-                    )}>
-                      {currentTrack?.id === track.id && audioStatus === 'loading' ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : currentTrack?.id === track.id && audioStatus === 'playing' ? (
-                        <Pause className="w-5 h-5" />
-                      ) : (
-                        <Play className="w-5 h-5 ml-0.5" />
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{track.name}</p>
-                      <p className="text-sm text-dark-400">{track.artist} - {track.category}</p>
-                    </div>
-
-                    {result && (
-                      <div className={cn(
-                        "px-2 py-1 rounded text-xs flex items-center gap-1",
-                        result.status === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                      )}>
-                        {result.status === 'success' ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                        {result.loadTime ? `${result.loadTime}ms` : 'Error'}
-                      </div>
+              {BEAT_PATTERNS.map((beat) => (
+                <div
+                  key={beat.name}
+                  onClick={() => playBeat(beat)}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all",
+                    currentBeat?.name === beat.name
+                      ? 'bg-purple-500/20 border border-purple-500/30'
+                      : 'bg-dark-800 hover:bg-dark-700'
+                  )}
+                >
+                  <div className={cn(
+                    "w-10 h-10 rounded-lg flex items-center justify-center transition-colors",
+                    currentBeat?.name === beat.name && audioStatus === 'playing'
+                      ? 'bg-purple-500'
+                      : 'bg-dark-700'
+                  )}>
+                    {currentBeat?.name === beat.name && audioStatus === 'playing' ? (
+                      <Pause className="w-5 h-5" />
+                    ) : (
+                      <Play className="w-5 h-5 ml-0.5" />
                     )}
                   </div>
-                )
-              })}
+
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{beat.name}</p>
+                    <p className="text-sm text-dark-400">
+                      {beat.bpm} BPM • {beat.style.charAt(0).toUpperCase() + beat.style.slice(1)}
+                    </p>
+                  </div>
+
+                  {currentBeat?.name === beat.name && audioStatus === 'playing' && (
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map((i) => (
+                        <motion.div
+                          key={i}
+                          className="w-1 bg-purple-400 rounded-full"
+                          animate={{
+                            height: [8, 16, 8],
+                          }}
+                          transition={{
+                            duration: 0.5,
+                            repeat: Infinity,
+                            delay: i * 0.15,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
-            {/* Now Playing Controls */}
-            {currentTrack && (
-              <div className="bg-dark-800 rounded-xl p-4 mb-4">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                    <Music className="w-6 h-6 text-purple-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold truncate">{currentTrack.name}</p>
-                    <p className="text-sm text-dark-400">{currentTrack.artist}</p>
-                  </div>
-                  <div className={cn(
-                    "px-2 py-1 rounded text-xs",
-                    audioStatus === 'playing' ? 'bg-green-500/20 text-green-400' :
-                    audioStatus === 'loading' ? 'bg-yellow-500/20 text-yellow-400' :
-                    audioStatus === 'error' ? 'bg-red-500/20 text-red-400' :
-                    'bg-dark-600 text-dark-300'
-                  )}>
-                    {audioStatus.charAt(0).toUpperCase() + audioStatus.slice(1)}
-                  </div>
-                </div>
+            {/* Volume Control */}
+            <div className="bg-dark-800 rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setIsMuted(!isMuted)}
+                  className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
+                >
+                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={volume}
+                  onChange={(e) => setVolume(Number(e.target.value))}
+                  className="flex-1 h-2 bg-dark-600 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full"
+                />
+                <span className="text-sm text-dark-400 w-12 text-right">
+                  {Math.round(volume * 100)}%
+                </span>
+              </div>
+            </div>
 
-                {/* Progress Bar */}
-                <div className="mb-4">
-                  <input
-                    type="range"
-                    min={0}
-                    max={duration || 100}
-                    value={progress}
-                    onChange={(e) => seekTo(Number(e.target.value))}
-                    className="w-full h-2 bg-dark-600 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-purple-500 [&::-webkit-slider-thumb]:rounded-full"
-                  />
-                  <div className="flex justify-between text-xs text-dark-400 mt-1">
-                    <span>{formatTime(progress)}</span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
-                </div>
-
-                {/* Playback Controls */}
-                <div className="flex items-center justify-center gap-4">
-                  <button
-                    onClick={() => skipTrack('prev')}
-                    className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <SkipBack className="w-5 h-5" />
-                  </button>
-
-                  <button
-                    onClick={togglePlayPause}
-                    disabled={audioStatus === 'loading' || audioStatus === 'error'}
-                    className={cn(
-                      "w-12 h-12 rounded-full flex items-center justify-center transition-all",
-                      audioStatus === 'playing' ? 'bg-purple-500' : 'bg-dark-600 hover:bg-dark-500'
-                    )}
-                  >
-                    {audioStatus === 'loading' ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : audioStatus === 'playing' ? (
-                      <Pause className="w-6 h-6" />
-                    ) : (
-                      <Play className="w-6 h-6 ml-1" />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => skipTrack('next')}
-                    className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    <SkipForward className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Volume Control */}
-                <div className="flex items-center gap-3 mt-4">
-                  <button
-                    onClick={() => setIsMuted(!isMuted)}
-                    className="p-2 hover:bg-dark-700 rounded-lg transition-colors"
-                  >
-                    {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                  </button>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={volume}
-                    onChange={(e) => setVolume(Number(e.target.value))}
-                    className="flex-1 h-2 bg-dark-600 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                  />
-                  <span className="text-sm text-dark-400 w-12 text-right">
-                    {Math.round(volume * 100)}%
-                  </span>
-                </div>
+            {/* Audio Test Result */}
+            {audioWorking !== null && (
+              <div className={cn(
+                "flex items-center gap-2 p-3 rounded-xl mb-4",
+                audioWorking
+                  ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                  : 'bg-red-500/10 border border-red-500/30 text-red-400'
+              )}>
+                {audioWorking ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+                <p className="text-sm">
+                  {audioWorking
+                    ? 'Audio is working! You should hear the beat playing.'
+                    : 'Audio test failed. Check your device volume and speakers.'}
+                </p>
               </div>
             )}
 
-            {/* Error Message */}
-            {errorMessage && (
-              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 mb-4">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <p className="text-sm">{errorMessage}</p>
-              </div>
+            {/* Stop Button */}
+            {audioStatus === 'playing' && (
+              <button
+                onClick={stopBeat}
+                className="btn-secondary w-full"
+              >
+                Stop Beat
+              </button>
             )}
-
-            {/* Run All Tests Button */}
-            <button
-              onClick={runAllTests}
-              disabled={isRunningTests}
-              className="btn-fire w-full flex items-center justify-center gap-2"
-            >
-              {isRunningTests ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Testing Audio Sources...
-                </>
-              ) : (
-                <>
-                  <Check className="w-5 h-5" />
-                  Run All Audio Tests
-                </>
-              )}
-            </button>
           </motion.div>
 
           {/* Microphone Test Section */}
@@ -492,6 +287,7 @@ export default function TestAudioPage() {
 
             <p className="text-dark-400 mb-4">
               Test your microphone to make sure it's working for rap battles.
+              You'll want to use headphones so the beat doesn't get picked up by the mic.
             </p>
 
             {micStatus === 'idle' && (
@@ -565,49 +361,37 @@ export default function TestAudioPage() {
             )}
           </motion.div>
 
-          {/* Test Results Summary */}
-          {testResults.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="card"
-            >
-              <h2 className="text-xl font-bold mb-4">Test Results</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
-                  <div className="text-3xl font-bold text-green-400">
-                    {testResults.filter(r => r.status === 'success').length}
-                  </div>
-                  <div className="text-sm text-dark-400">Passed</div>
-                </div>
-                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center">
-                  <div className="text-3xl font-bold text-red-400">
-                    {testResults.filter(r => r.status === 'error').length}
-                  </div>
-                  <div className="text-sm text-dark-400">Failed</div>
-                </div>
-              </div>
+          {/* Tips Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="card"
+          >
+            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-gold-400" />
+              Tips for Best Performance
+            </h2>
 
-              {testResults.filter(r => r.status === 'success').length === TEST_TRACKS.length && (
-                <div className="mt-4 p-3 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 flex items-center gap-2">
-                  <Check className="w-5 h-5" />
-                  All audio tests passed! Your device is ready for battle.
-                </div>
-              )}
-
-              {testResults.some(r => r.status === 'error') && (
-                <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-yellow-400 text-sm">
-                  <p className="font-medium mb-1">Troubleshooting tips:</p>
-                  <ul className="list-disc list-inside space-y-1 text-dark-300">
-                    <li>Check your internet connection</li>
-                    <li>Try a different browser (Chrome recommended)</li>
-                    <li>Disable any ad blockers</li>
-                    <li>Check if your device audio is muted</li>
-                  </ul>
-                </div>
-              )}
-            </motion.div>
-          )}
+            <ul className="space-y-3 text-dark-300">
+              <li className="flex items-start gap-2">
+                <Check className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                <span><strong>Use headphones</strong> - This prevents the beat from being picked up by your microphone</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                <span><strong>Find a quiet space</strong> - Background noise can interfere with your recording</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                <span><strong>Position your mic correctly</strong> - Keep it 4-6 inches from your mouth</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Check className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
+                <span><strong>Test before your battle</strong> - Make sure everything is working before you start</span>
+              </li>
+            </ul>
+          </motion.div>
         </div>
       </div>
     </div>
