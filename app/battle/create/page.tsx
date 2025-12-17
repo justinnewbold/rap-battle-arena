@@ -3,13 +3,25 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Copy, Check, Users, ArrowLeft, Loader2, Settings, Vote, Eye, EyeOff, Music, Play, Pause, Share2 } from 'lucide-react'
+import { Copy, Check, Users, ArrowLeft, Loader2, Settings, Vote, Eye, EyeOff, Music, Play, Pause, Share2, Volume2 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import { supabase, createBattle, Battle, CreateBattleOptions, getBeats, Beat, getUserBeats, UserBeat } from '@/lib/supabase'
 import { getAvatarUrl, generateRoomCode, cn } from '@/lib/utils'
-import { SAMPLE_BEATS, DEMO_LIBRARY_BEATS, DEMO_USER_BEATS } from '@/lib/constants'
+import { DEMO_LIBRARY_BEATS, DEMO_USER_BEATS, BeatStyle } from '@/lib/constants'
+import { getBeatGenerator } from '@/lib/beat-generator'
 
 type Step = 'settings' | 'waiting'
+
+// Extended beat type that includes style for generated beats
+interface DemoBeat extends Omit<Beat, 'audio_url'> {
+  style?: BeatStyle
+  audio_url: string | null
+}
+
+interface DemoUserBeat extends Omit<UserBeat, 'audio_url'> {
+  style?: BeatStyle
+  audio_url: string | null
+}
 
 function CreateBattleContent() {
   const router = useRouter()
@@ -28,12 +40,16 @@ function CreateBattleContent() {
   const [showVotesDuringBattle, setShowVotesDuringBattle] = useState(false)
 
   // Beat selection
-  const [beats, setBeats] = useState<Beat[]>([])
-  const [userBeats, setUserBeats] = useState<UserBeat[]>([])
-  const [selectedBeat, setSelectedBeat] = useState<Beat | null>(null)
+  const [beats, setBeats] = useState<DemoBeat[]>([])
+  const [userBeats, setUserBeats] = useState<DemoUserBeat[]>([])
+  const [selectedBeat, setSelectedBeat] = useState<DemoBeat | null>(null)
   const [playingBeatId, setPlayingBeatId] = useState<string | null>(null)
-  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
   const [beatSection, setBeatSection] = useState<'all' | 'mine'>('all')
+
+  // Audio playback state
+  const [audioLoading, setAudioLoading] = useState(false)
+  const [audioError, setAudioError] = useState<string | null>(null)
+  const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -44,8 +60,9 @@ function CreateBattleContent() {
   }, [user, router])
 
   useEffect(() => {
-    // Cleanup audio on unmount
+    // Cleanup on unmount
     return () => {
+      getBeatGenerator().stop()
       if (audioRef) {
         audioRef.pause()
         audioRef.src = ''
@@ -56,8 +73,8 @@ function CreateBattleContent() {
   async function loadBeats() {
     if (isDemo) {
       // In demo mode, always use demo beats
-      setBeats([...DEMO_LIBRARY_BEATS] as Beat[])
-      setUserBeats([...DEMO_USER_BEATS] as UserBeat[])
+      setBeats([...DEMO_LIBRARY_BEATS] as DemoBeat[])
+      setUserBeats([...DEMO_USER_BEATS] as DemoUserBeat[])
       return
     }
 
@@ -67,34 +84,40 @@ function CreateBattleContent() {
     ])
 
     // Use loaded beats or fallback to demo
-    setBeats(loadedBeats.length > 0 ? loadedBeats : [...DEMO_LIBRARY_BEATS] as Beat[])
-    setUserBeats(loadedUserBeats)
+    setBeats(loadedBeats.length > 0 ? loadedBeats as DemoBeat[] : [...DEMO_LIBRARY_BEATS] as DemoBeat[])
+    setUserBeats(loadedUserBeats as DemoUserBeat[])
   }
 
-  // Audio playback state
-  const [audioLoading, setAudioLoading] = useState(false)
-  const [audioError, setAudioError] = useState<string | null>(null)
-
-  function toggleBeatPlay(beat: Beat) {
-    if (!beat.audio_url) {
-      setAudioError('No audio available for this beat')
-      setTimeout(() => setAudioError(null), 3000)
-      return
-    }
+  function toggleBeatPlay(beat: DemoBeat | DemoUserBeat) {
+    const generator = getBeatGenerator()
 
     if (playingBeatId === beat.id) {
       // Stop playing
+      generator.stop()
       if (audioRef) {
         audioRef.pause()
       }
       setPlayingBeatId(null)
       setAudioLoading(false)
-    } else {
-      // Play new beat
-      if (audioRef) {
-        audioRef.pause()
-      }
+      return
+    }
 
+    // Stop any current playback
+    generator.stop()
+    if (audioRef) {
+      audioRef.pause()
+    }
+
+    // Check if this is a demo beat (has style) or uploaded beat (has audio_url)
+    const demoBeat = beat as DemoBeat
+    if (demoBeat.style && beat.id.startsWith('demo-') || beat.id.startsWith('my-demo-')) {
+      // Use Web Audio API beat generator
+      setAudioLoading(false)
+      setAudioError(null)
+      generator.start({ name: beat.name, bpm: beat.bpm, style: demoBeat.style || 'hiphop' })
+      setPlayingBeatId(beat.id)
+    } else if (beat.audio_url) {
+      // Use HTML5 Audio for uploaded beats
       setAudioLoading(true)
       setAudioError(null)
 
@@ -122,6 +145,9 @@ function CreateBattleContent() {
       audio.load()
       setAudioRef(audio)
       setPlayingBeatId(beat.id)
+    } else {
+      setAudioError('No audio available for this beat')
+      setTimeout(() => setAudioError(null), 3000)
     }
   }
 
@@ -135,10 +161,11 @@ function CreateBattleContent() {
     }
 
     // Stop any playing audio
+    getBeatGenerator().stop()
     if (audioRef) {
       audioRef.pause()
-      setPlayingBeatId(null)
     }
+    setPlayingBeatId(null)
 
     const options: CreateBattleOptions = {
       player1Id: user!.id,
@@ -146,7 +173,7 @@ function CreateBattleContent() {
       totalRounds,
       votingStyle,
       showVotesDuringBattle: votingStyle === 'per_round' ? showVotesDuringBattle : false,
-      beatId: selectedBeat?.id.startsWith('demo-') ? null : selectedBeat?.id
+      beatId: selectedBeat?.id.startsWith('demo-') || selectedBeat?.id.startsWith('my-demo-') ? null : selectedBeat?.id
     }
 
     const newBattle = await createBattle(options)
@@ -183,10 +210,12 @@ function CreateBattleContent() {
   }
 
   function handleDemoStart() {
+    getBeatGenerator().stop()
     router.push(`/battle/demo-${Date.now()}`)
   }
 
   async function handleCancel() {
+    getBeatGenerator().stop()
     if (battle) {
       try {
         await supabase.from('battles').delete().eq('id', battle.id)
@@ -209,6 +238,7 @@ function CreateBattleContent() {
       }
       setStep('settings')
     } else {
+      getBeatGenerator().stop()
       router.push('/dashboard')
     }
   }
@@ -339,6 +369,14 @@ function CreateBattleContent() {
                   </div>
                 )}
 
+                {/* Playing indicator */}
+                {playingBeatId && (
+                  <div className="mb-3 px-3 py-2 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 animate-pulse" />
+                    <span>Playing beat preview...</span>
+                  </div>
+                )}
+
                 {/* Beat Section Tabs */}
                 {userBeats.length > 0 && (
                   <div className="flex gap-2 mb-3">
@@ -370,7 +408,12 @@ function CreateBattleContent() {
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-dark-600">
                   {/* No beat option */}
                   <button
-                    onClick={() => setSelectedBeat(null)}
+                    onClick={() => {
+                      setSelectedBeat(null)
+                      getBeatGenerator().stop()
+                      if (audioRef) audioRef.pause()
+                      setPlayingBeatId(null)
+                    }}
                     className={cn(
                       "w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left",
                       selectedBeat === null
@@ -417,7 +460,7 @@ function CreateBattleContent() {
                         )}
                       </button>
                       <button
-                        onClick={() => setSelectedBeat(beat)}
+                        onClick={() => setSelectedBeat(beat as DemoBeat)}
                         className="flex-1 text-left"
                       >
                         <div className="flex items-center gap-2">

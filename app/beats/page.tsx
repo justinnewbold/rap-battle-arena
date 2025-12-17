@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Music, ArrowLeft, Upload, Play, Pause, Trash2, Plus,
-  Globe, Lock, X, Check, Loader2, Clock, Image as ImageIcon
+  Globe, Lock, X, Check, Loader2, Clock, Image as ImageIcon, Volume2
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
@@ -13,18 +13,31 @@ import {
   uploadBeat, deleteBeat, uploadBeatFile, uploadBeatCover
 } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
-import { SAMPLE_BEATS } from '@/lib/constants'
+import { DEMO_LIBRARY_BEATS, DEMO_USER_BEATS, BeatStyle } from '@/lib/constants'
+import { getBeatGenerator } from '@/lib/beat-generator'
 
 type TabType = 'my-beats' | 'public' | 'library'
 
-// Demo beats
-const DEMO_MY_BEATS: UserBeat[] = [
+// Extended beat type that includes style for generated beats
+interface DemoBeat extends Omit<Beat, 'audio_url'> {
+  style?: BeatStyle
+  audio_url: string | null
+}
+
+interface DemoUserBeat extends Omit<UserBeat, 'audio_url'> {
+  style?: BeatStyle
+  audio_url: string | null
+}
+
+// Demo beats using Web Audio API generator
+const DEMO_MY_BEATS: DemoUserBeat[] = [
   {
     id: 'my-1',
     name: 'Summer Vibes',
     artist: 'You',
     bpm: 92,
-    audio_url: SAMPLE_BEATS.hiphop1,
+    style: 'hiphop',
+    audio_url: null,
     cover_url: null,
     duration: 180,
     is_premium: false,
@@ -37,7 +50,8 @@ const DEMO_MY_BEATS: UserBeat[] = [
     name: 'Midnight Flow',
     artist: 'You',
     bpm: 88,
-    audio_url: SAMPLE_BEATS.chill1,
+    style: 'chill',
+    audio_url: null,
     cover_url: null,
     duration: 200,
     is_premium: false,
@@ -51,9 +65,9 @@ export default function BeatsPage() {
   const router = useRouter()
   const { user, isDemo } = useUserStore()
   const [activeTab, setActiveTab] = useState<TabType>('my-beats')
-  const [myBeats, setMyBeats] = useState<UserBeat[]>([])
+  const [myBeats, setMyBeats] = useState<DemoUserBeat[]>([])
   const [publicBeats, setPublicBeats] = useState<UserBeat[]>([])
-  const [libraryBeats, setLibraryBeats] = useState<Beat[]>([])
+  const [libraryBeats, setLibraryBeats] = useState<DemoBeat[]>([])
   const [loading, setLoading] = useState(true)
   const [playingBeatId, setPlayingBeatId] = useState<string | null>(null)
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
@@ -85,6 +99,7 @@ export default function BeatsPage() {
 
   useEffect(() => {
     return () => {
+      getBeatGenerator().stop()
       if (audioRef) {
         audioRef.pause()
         audioRef.src = ''
@@ -97,26 +112,17 @@ export default function BeatsPage() {
     if (isDemo) {
       setMyBeats(DEMO_MY_BEATS)
       setPublicBeats([])
-      // Use more demo beats from constants
-      setLibraryBeats([
-        { id: 'lib-1', name: 'Street Heat', artist: 'BeatMaster', bpm: 90, audio_url: SAMPLE_BEATS.hiphop1, cover_url: null, duration: 180, is_premium: false },
-        { id: 'lib-2', name: 'Night Vibes', artist: 'ProducerX', bpm: 85, audio_url: SAMPLE_BEATS.chill1, cover_url: null, duration: 200, is_premium: false },
-        { id: 'lib-3', name: 'Battle Ready', artist: 'HipHopKing', bpm: 95, audio_url: SAMPLE_BEATS.hiphop2, cover_url: null, duration: 160, is_premium: false },
-        { id: 'lib-4', name: 'Underground Flow', artist: 'BeatMaster', bpm: 88, audio_url: SAMPLE_BEATS.trap1, cover_url: null, duration: 190, is_premium: false },
-        { id: 'lib-5', name: 'Deep Urban', artist: 'UrbanBeats', bpm: 92, audio_url: SAMPLE_BEATS.deep1, cover_url: null, duration: 175, is_premium: false },
-        { id: 'lib-6', name: 'Dream State', artist: 'CloudNine', bpm: 78, audio_url: SAMPLE_BEATS.dreamy1, cover_url: null, duration: 210, is_premium: false },
-        { id: 'lib-7', name: 'Game On', artist: 'TechFlow', bpm: 130, audio_url: SAMPLE_BEATS.gaming1, cover_url: null, duration: 165, is_premium: false },
-        { id: 'lib-8', name: 'Lo-Fi Chill', artist: 'ChillMaster', bpm: 75, audio_url: SAMPLE_BEATS.boom1, cover_url: null, duration: 195, is_premium: false },
-      ])
+      // Use demo beats from constants with Web Audio styles
+      setLibraryBeats([...DEMO_LIBRARY_BEATS] as DemoBeat[])
     } else {
       const [userBeats, pubBeats, libBeats] = await Promise.all([
         getUserBeats(user!.id),
         getPublicBeats(),
         getBeats()
       ])
-      setMyBeats(userBeats)
+      setMyBeats(userBeats as DemoUserBeat[])
       setPublicBeats(pubBeats.filter(b => b.uploaded_by !== user!.id))
-      setLibraryBeats(libBeats)
+      setLibraryBeats(libBeats as DemoBeat[])
     }
     setLoading(false)
   }
@@ -124,23 +130,37 @@ export default function BeatsPage() {
   const [audioError, setAudioError] = useState<string | null>(null)
   const [audioLoading, setAudioLoading] = useState(false)
 
-  function toggleBeatPlay(beat: Beat | UserBeat) {
-    if (!beat.audio_url) {
-      setAudioError('No audio available for this beat')
-      setTimeout(() => setAudioError(null), 3000)
-      return
-    }
+  function toggleBeatPlay(beat: DemoBeat | DemoUserBeat) {
+    const generator = getBeatGenerator()
 
     if (playingBeatId === beat.id) {
+      // Stop playing
+      generator.stop()
       if (audioRef) {
         audioRef.pause()
       }
       setPlayingBeatId(null)
       setAudioLoading(false)
-    } else {
-      if (audioRef) {
-        audioRef.pause()
-      }
+      return
+    }
+
+    // Stop any current playback
+    generator.stop()
+    if (audioRef) {
+      audioRef.pause()
+    }
+
+    // Check if this is a demo beat (has style) or uploaded beat (has audio_url)
+    const hasStyle = beat.style && (beat.id.startsWith('demo-') || beat.id.startsWith('my-') || beat.id.startsWith('lib-'))
+
+    if (hasStyle && beat.style) {
+      // Use Web Audio API beat generator
+      setAudioLoading(false)
+      setAudioError(null)
+      generator.start({ name: beat.name, bpm: beat.bpm, style: beat.style })
+      setPlayingBeatId(beat.id)
+    } else if (beat.audio_url) {
+      // Use HTML5 Audio for uploaded beats
       setAudioLoading(true)
       setAudioError(null)
 
@@ -166,6 +186,9 @@ export default function BeatsPage() {
       audio.load()
       setAudioRef(audio)
       setPlayingBeatId(beat.id)
+    } else {
+      setAudioError('No audio available for this beat')
+      setTimeout(() => setAudioError(null), 3000)
     }
   }
 
@@ -251,12 +274,13 @@ export default function BeatsPage() {
     try {
       if (isDemo) {
         // Demo mode - just add to local state
-        const newBeat: UserBeat = {
+        const newBeat: DemoUserBeat = {
           id: `demo-${Date.now()}`,
           name: uploadData.name,
           artist: uploadData.artist || user.username,
           bpm: uploadData.bpm,
-          audio_url: '',
+          style: 'hiphop', // Default style for demo uploads
+          audio_url: null,
           cover_url: null,
           duration: audioDuration,
           is_premium: false,
@@ -294,7 +318,7 @@ export default function BeatsPage() {
       )
 
       if (beat) {
-        setMyBeats(prev => [beat, ...prev])
+        setMyBeats(prev => [beat as DemoUserBeat, ...prev])
         resetUploadModal()
       } else {
         throw new Error('Failed to create beat record')
@@ -336,7 +360,10 @@ export default function BeatsPage() {
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => {
+                getBeatGenerator().stop()
+                router.push('/dashboard')
+              }}
               className="text-dark-400 hover:text-white"
             >
               <ArrowLeft className="w-6 h-6" />
@@ -370,6 +397,21 @@ export default function BeatsPage() {
             >
               <X className="w-4 h-4" />
               {audioError}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Playing indicator */}
+        <AnimatePresence>
+          {playingBeatId && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-green-500/90 text-white rounded-lg shadow-lg flex items-center gap-2"
+            >
+              <Volume2 className="w-4 h-4 animate-pulse" />
+              Playing beat preview...
             </motion.div>
           )}
         </AnimatePresence>
@@ -437,16 +479,14 @@ export default function BeatsPage() {
               >
                 {/* Cover / Play Button */}
                 <button
-                  onClick={() => toggleBeatPlay(beat)}
+                  onClick={() => toggleBeatPlay(beat as DemoBeat)}
                   disabled={audioLoading && playingBeatId === beat.id}
                   className={cn(
                     "w-14 h-14 rounded-xl flex items-center justify-center shrink-0 transition-all",
                     beat.cover_url ? 'bg-cover bg-center' : 'bg-purple-500/20',
-                    playingBeatId === beat.id && 'ring-2 ring-purple-500',
-                    !beat.audio_url && 'opacity-50 cursor-not-allowed'
+                    playingBeatId === beat.id && 'ring-2 ring-purple-500'
                   )}
                   style={beat.cover_url ? { backgroundImage: `url(${beat.cover_url})` } : {}}
-                  title={!beat.audio_url ? 'No audio available' : undefined}
                 >
                   {audioLoading && playingBeatId === beat.id ? (
                     <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
