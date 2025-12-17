@@ -26,6 +26,7 @@ export default function TestAudioPage() {
   const [micLevel, setMicLevel] = useState(0)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animationRef = useRef<number | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
 
   useEffect(() => {
     return () => {
@@ -88,6 +89,7 @@ export default function TestAudioPage() {
 
       // Set up audio analysis
       const audioContext = new AudioContext()
+      audioContextRef.current = audioContext
       const analyser = audioContext.createAnalyser()
       const source = audioContext.createMediaStreamSource(stream)
       source.connect(analyser)
@@ -118,6 +120,12 @@ export default function TestAudioPage() {
     }
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current)
+      animationRef.current = null
+    }
+    // Close the AudioContext to free resources
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close()
+      audioContextRef.current = null
     }
     analyserRef.current = null
     setMicStatus('idle')

@@ -110,7 +110,7 @@ function CreateBattleContent() {
 
     // Check if this is a demo beat (has style) or uploaded beat (has audio_url)
     const demoBeat = beat as DemoBeat
-    if (demoBeat.style && beat.id.startsWith('demo-') || beat.id.startsWith('my-demo-')) {
+    if (demoBeat.style && (beat.id.startsWith('demo-') || beat.id.startsWith('my-demo-'))) {
       // Use Web Audio API beat generator
       setAudioLoading(false)
       setAudioError(null)

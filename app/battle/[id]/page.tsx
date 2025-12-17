@@ -75,7 +75,11 @@ function BattleContent() {
   // Beat playback
   const [selectedBeat, setSelectedBeat] = useState<DemoBeat | null>(null)
   const [isBeatPlaying, setIsBeatPlaying] = useState(false)
+  const [beatVolume, setBeatVolume] = useState(0.5)
   const beatAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Supabase channel ref for cleanup
+  const battleChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   useEffect(() => {
     // Preload sounds on mount
@@ -85,11 +89,12 @@ function BattleContent() {
   useEffect(() => {
     // Sync mute state with sound manager and beat volume
     sounds.setEnabled(!isMuted)
+    const effectiveVolume = isMuted ? 0 : beatVolume
     if (beatAudioRef.current) {
-      beatAudioRef.current.volume = isMuted ? 0 : 0.5
+      beatAudioRef.current.volume = effectiveVolume
     }
-    getBeatGenerator().setVolume(isMuted ? 0 : 0.5)
-  }, [isMuted])
+    getBeatGenerator().setVolume(effectiveVolume)
+  }, [isMuted, beatVolume])
 
   // Cleanup beat on unmount
   useEffect(() => {
@@ -112,6 +117,11 @@ function BattleContent() {
 
     return () => {
       resetBattle()
+      // Cleanup Supabase channel subscription
+      if (battleChannelRef.current) {
+        supabase.removeChannel(battleChannelRef.current)
+        battleChannelRef.current = null
+      }
     }
   }, [battleId])
 
@@ -252,6 +262,11 @@ function BattleContent() {
       setSpectatorCount(count)
 
       // Subscribe to battle updates
+      // Clean up any existing channel first
+      if (battleChannelRef.current) {
+        supabase.removeChannel(battleChannelRef.current)
+      }
+
       const channel = supabase
         .channel(`battle-${battleId}`)
         .on(
@@ -270,6 +285,9 @@ function BattleContent() {
         )
         .subscribe()
 
+      // Store channel ref for cleanup
+      battleChannelRef.current = channel
+
       if (loadedBattle.status === 'ready') {
         setPhase('countdown')
       }
@@ -281,18 +299,19 @@ function BattleContent() {
     if (!selectedBeat || isBeatPlaying) return
 
     const generator = getBeatGenerator()
+    const effectiveVolume = isMuted ? 0 : beatVolume
 
     // Check if this is a demo beat (has style) or uploaded beat (has audio_url)
     if (selectedBeat.style && (selectedBeat.id.startsWith('demo-') || selectedBeat.id.startsWith('lib-'))) {
       // Use Web Audio API beat generator
       generator.start({ name: selectedBeat.name, bpm: selectedBeat.bpm, style: selectedBeat.style })
-      generator.setVolume(isMuted ? 0 : 0.5)
+      generator.setVolume(effectiveVolume)
       setIsBeatPlaying(true)
     } else if (selectedBeat.audio_url) {
       // Use HTML5 Audio for uploaded beats
       const audio = new Audio(selectedBeat.audio_url)
       audio.loop = true
-      audio.volume = isMuted ? 0 : 0.5
+      audio.volume = effectiveVolume
       audio.play().catch(err => console.error('Beat playback error:', err))
       beatAudioRef.current = audio
       setIsBeatPlaying(true)
@@ -656,17 +675,39 @@ function BattleContent() {
           </motion.div>
         </div>
 
-        {/* Beat Playing Indicator */}
+        {/* Beat Playing Indicator with Volume Control */}
         {isBeatPlaying && selectedBeat && (phase === 'player1' || phase === 'player2') && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 bg-gold-500/20 border border-gold-500/30 rounded-full px-6 py-3 mb-4"
+            className="flex flex-col items-center gap-2 mb-4"
           >
-            <Music className="w-5 h-5 text-gold-400 animate-pulse" />
-            <span className="text-gold-400 font-medium">
-              {selectedBeat.name} • {selectedBeat.bpm} BPM
-            </span>
+            <div className="flex items-center gap-3 bg-gold-500/20 border border-gold-500/30 rounded-full px-6 py-3">
+              <Music className="w-5 h-5 text-gold-400 animate-pulse" />
+              <span className="text-gold-400 font-medium">
+                {selectedBeat.name} • {selectedBeat.bpm} BPM
+              </span>
+            </div>
+            <div className="flex items-center gap-2 bg-dark-800/80 rounded-full px-4 py-2">
+              <button
+                onClick={() => setIsMuted(!isMuted)}
+                className="p-1 hover:bg-dark-700 rounded transition-colors"
+              >
+                {isMuted ? <VolumeX className="w-4 h-4 text-dark-400" /> : <Volume2 className="w-4 h-4 text-gold-400" />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={beatVolume}
+                onChange={(e) => setBeatVolume(Number(e.target.value))}
+                className="w-24 h-1.5 bg-dark-600 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-gold-400 [&::-webkit-slider-thumb]:rounded-full"
+              />
+              <span className="text-xs text-dark-400 w-8">
+                {Math.round(beatVolume * 100)}%
+              </span>
+            </div>
           </motion.div>
         )}
 
