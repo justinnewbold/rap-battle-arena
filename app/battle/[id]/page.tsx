@@ -142,8 +142,8 @@ function BattleContent() {
   useEffect(() => {
     if (phase === 'countdown' && countdown > 0) {
       sounds.play('countdown')
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
-      return () => clearTimeout(timer)
+      const countdownTimeout = setTimeout(() => setCountdown(countdown - 1), 1000)
+      return () => clearTimeout(countdownTimeout)
     } else if (phase === 'countdown' && countdown === 0) {
       sounds.play('round_start')
       startTurn()
