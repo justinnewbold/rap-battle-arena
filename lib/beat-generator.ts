@@ -62,7 +62,6 @@ class BeatGenerator {
   private isPlaying = false
   private intervalId: number | null = null
   private currentBeat = 0
-  private scheduledNodes: AudioNode[] = []
 
   constructor() {}
 

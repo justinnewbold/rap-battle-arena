@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Profile, Battle } from '../../shared/types'
+import { Profile, Battle } from './types'
 
 interface UserState {
   user: Profile | null
