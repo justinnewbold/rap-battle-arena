@@ -45,30 +45,46 @@ export default function SignupPage() {
       if (authError) throw authError
 
       if (data.user) {
-        // Wait a moment for trigger to create profile
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        // Fetch profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single()
+        // Poll for profile creation with retries (handles trigger delay)
+        let profile = null
+        const maxRetries = 10
+        const retryDelay = 500 // 500ms between retries
+
+        for (let i = 0; i < maxRetries; i++) {
+          const { data: fetchedProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single()
+
+          if (fetchedProfile) {
+            profile = fetchedProfile
+            break
+          }
+
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+        }
 
         if (profile) {
           setUser(profile)
           router.push('/dashboard')
         } else {
-          // Profile might not be created yet, create manually
+          // Profile still not created after retries, create manually
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
-            .insert({
+            .upsert({
               id: data.user.id,
               username: username,
-            })
+            }, { onConflict: 'id' })
             .select()
             .single()
-          
+
+          if (createError) {
+            console.error('Error creating profile:', createError)
+            throw new Error('Failed to create profile. Please try logging in.')
+          }
+
           if (newProfile) {
             setUser(newProfile)
             router.push('/dashboard')

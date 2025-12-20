@@ -125,13 +125,30 @@ export async function updateProfile(userId: string, updates: Partial<Profile>): 
   return data
 }
 
-export async function getLeaderboard(limit: number = 10): Promise<Profile[]> {
-  const { data, error } = await supabase
+export type LeaderboardTimeframe = 'all' | 'month' | 'week'
+
+export async function getLeaderboard(limit: number = 10, timeframe: LeaderboardTimeframe = 'all'): Promise<Profile[]> {
+  let query = supabase
     .from('profiles')
     .select('*')
     .order('elo_rating', { ascending: false })
     .limit(limit)
-  
+
+  // Filter by timeframe based on account creation or recent activity
+  // For 'month' and 'week', we filter profiles that have been updated recently
+  // (indicating recent battle activity)
+  if (timeframe === 'month') {
+    const monthAgo = new Date()
+    monthAgo.setMonth(monthAgo.getMonth() - 1)
+    query = query.gte('updated_at', monthAgo.toISOString())
+  } else if (timeframe === 'week') {
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    query = query.gte('updated_at', weekAgo.toISOString())
+  }
+
+  const { data, error } = await query
+
   if (error) {
     console.error('Error fetching leaderboard:', error)
     return []
@@ -1427,4 +1444,185 @@ export async function searchCrews(query: string): Promise<Crew[]> {
     return []
   }
   return data || []
+}
+
+export async function searchUsers(query: string): Promise<Profile[]> {
+  if (!query || query.length < 2) return []
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .ilike('username', `%${query}%`)
+    .order('elo_rating', { ascending: false })
+    .limit(20)
+
+  if (error) {
+    console.error('Error searching users:', error)
+    return []
+  }
+  return data || []
+}
+
+// Battle rounds functions
+export async function getBattleRounds(battleId: string): Promise<BattleRound[]> {
+  const { data, error } = await supabase
+    .from('battle_rounds')
+    .select('*')
+    .eq('battle_id', battleId)
+    .order('round_number', { ascending: true })
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching battle rounds:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function getBattleWithDetails(battleId: string): Promise<{
+  battle: Battle | null
+  rounds: BattleRound[]
+  votes: Vote[]
+}> {
+  const [battle, rounds, votes] = await Promise.all([
+    getBattle(battleId),
+    getBattleRounds(battleId),
+    getVotes(battleId)
+  ])
+
+  return { battle, rounds, votes }
+}
+
+// Custom beat upload functions
+export interface UserBeat extends Beat {
+  uploaded_by: string
+  is_public: boolean
+  play_count: number
+}
+
+export async function uploadBeat(
+  userId: string,
+  name: string,
+  artist: string,
+  bpm: number,
+  audioUrl: string,
+  duration: number,
+  coverUrl?: string,
+  isPublic: boolean = false
+): Promise<UserBeat | null> {
+  const { data, error } = await supabase
+    .from('beats')
+    .insert({
+      name,
+      artist,
+      bpm,
+      audio_url: audioUrl,
+      cover_url: coverUrl || null,
+      duration,
+      is_premium: false,
+      uploaded_by: userId,
+      is_public: isPublic
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error uploading beat:', error)
+    return null
+  }
+  return data
+}
+
+export async function getUserBeats(userId: string): Promise<UserBeat[]> {
+  const { data, error } = await supabase
+    .from('beats')
+    .select('*')
+    .eq('uploaded_by', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching user beats:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function getPublicBeats(): Promise<UserBeat[]> {
+  const { data, error } = await supabase
+    .from('beats')
+    .select('*')
+    .eq('is_public', true)
+    .order('play_count', { ascending: false })
+    .limit(50)
+
+  if (error) {
+    console.error('Error fetching public beats:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function deleteBeat(beatId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('beats')
+    .delete()
+    .eq('id', beatId)
+    .eq('uploaded_by', userId)
+
+  if (error) {
+    console.error('Error deleting beat:', error)
+    return false
+  }
+  return true
+}
+
+export async function incrementBeatPlayCount(beatId: string): Promise<void> {
+  await supabase.rpc('increment_beat_play_count', { beat_id: beatId })
+}
+
+// Upload file to Supabase Storage
+export async function uploadBeatFile(file: File, userId: string): Promise<string | null> {
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${userId}/${Date.now()}.${fileExt}`
+
+  const { error } = await supabase.storage
+    .from('beats')
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
+
+  if (error) {
+    console.error('Error uploading beat file:', error)
+    return null
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('beats')
+    .getPublicUrl(fileName)
+
+  return publicUrl
+}
+
+export async function uploadBeatCover(file: File, userId: string): Promise<string | null> {
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${userId}/covers/${Date.now()}.${fileExt}`
+
+  const { error } = await supabase.storage
+    .from('beats')
+    .upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: false
+    })
+
+  if (error) {
+    console.error('Error uploading beat cover:', error)
+    return null
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('beats')
+    .getPublicUrl(fileName)
+
+  return publicUrl
 }

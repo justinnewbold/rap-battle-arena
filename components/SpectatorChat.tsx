@@ -22,6 +22,19 @@ export default function SpectatorChat({ battleId, userId, username, isDemo }: Sp
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Refs to hold current values for use in subscription callback
+  const isMinimizedRef = useRef(isMinimized)
+  const userIdRef = useRef(userId)
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    isMinimizedRef.current = isMinimized
+  }, [isMinimized])
+
+  useEffect(() => {
+    userIdRef.current = userId
+  }, [userId])
+
   useEffect(() => {
     if (isDemo) {
       // Demo messages
@@ -81,7 +94,8 @@ export default function SpectatorChat({ battleId, userId, username, isDemo }: Sp
 
           if (data) {
             setMessages(prev => [...prev, data])
-            if (isMinimized && data.user_id !== userId) {
+            // Use refs to get current values in callback
+            if (isMinimizedRef.current && data.user_id !== userIdRef.current) {
               setUnreadCount(prev => prev + 1)
             }
           }

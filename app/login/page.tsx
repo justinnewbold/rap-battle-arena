@@ -40,6 +40,26 @@ export default function LoginPage() {
         if (profile) {
           setUser(profile)
           router.push('/dashboard')
+        } else {
+          // Profile doesn't exist - create one using email username
+          const username = data.user.email?.split('@')[0] || `user_${Date.now()}`
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: data.user.id,
+              username: username,
+            }, { onConflict: 'id' })
+            .select()
+            .single()
+
+          if (createError) {
+            throw new Error('Failed to create profile. Please try again.')
+          }
+
+          if (newProfile) {
+            setUser(newProfile)
+            router.push('/dashboard')
+          }
         }
       }
     } catch (err: any) {

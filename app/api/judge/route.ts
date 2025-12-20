@@ -1,15 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import {
+  authenticateRequest,
+  checkRateLimit,
+  rateLimitedResponse,
+  badRequestResponse,
+  serverErrorResponse,
+  validateOpenAIKey
+} from '@/lib/api-auth'
+import { API_RATE_LIMITS, INPUT_LIMITS } from '@/lib/constants'
 
 export async function POST(request: NextRequest) {
   try {
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
+    // Authenticate request
+    const auth = await authenticateRequest(request)
+    if (!auth.success) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+
+    // Rate limiting
+    const rateLimit = checkRateLimit(
+      `judge:${auth.userId}`,
+      API_RATE_LIMITS.judge.maxRequests,
+      API_RATE_LIMITS.judge.windowMs
+    )
+    if (!rateLimit.allowed) {
+      return rateLimitedResponse(rateLimit.resetAt)
+    }
+
+    // Validate OpenAI key
+    let apiKey: string
+    try {
+      apiKey = validateOpenAIKey()
+    } catch {
+      return serverErrorResponse('AI service not configured')
+    }
+
+    const openai = new OpenAI({ apiKey })
+
     const { transcript, opponentTranscript, roundNumber } = await request.json()
 
-    if (!transcript) {
-      return NextResponse.json({ error: 'No transcript provided' }, { status: 400 })
+    // Input validation
+    if (!transcript || typeof transcript !== 'string') {
+      return badRequestResponse('No transcript provided')
+    }
+
+    if (transcript.length > INPUT_LIMITS.transcriptMaxLength) {
+      return badRequestResponse(`Transcript too long. Maximum ${INPUT_LIMITS.transcriptMaxLength} characters.`)
+    }
+
+    if (opponentTranscript && typeof opponentTranscript !== 'string') {
+      return badRequestResponse('Invalid opponent transcript')
+    }
+
+    if (opponentTranscript && opponentTranscript.length > INPUT_LIMITS.transcriptMaxLength) {
+      return badRequestResponse(`Opponent transcript too long. Maximum ${INPUT_LIMITS.transcriptMaxLength} characters.`)
     }
 
     const prompt = `You are an expert hip-hop battle rap judge. Analyze the following rap verse and score it.
@@ -77,13 +122,16 @@ Be fair but critical. Great battle rappers score 7-8. Legendary verses score 9+.
       ...result,
       total: Math.round(total * 100) / 100,
       model: 'gpt-4-turbo-preview'
+    }, {
+      headers: {
+        'X-RateLimit-Remaining': String(rateLimit.remaining),
+        'X-RateLimit-Reset': String(rateLimit.resetAt)
+      }
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Judge API error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Failed to judge verse' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Failed to judge verse'
+    return serverErrorResponse(message)
   }
 }

@@ -8,7 +8,7 @@ import {
   Swords, Crown, X
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { Profile, Crew, searchCrews } from '@/lib/supabase'
+import { Profile, Crew, searchCrews, searchUsers } from '@/lib/supabase'
 import { cn, getAvatarUrl, formatElo, getEloRank } from '@/lib/utils'
 import { useSounds } from '@/lib/sounds'
 
@@ -89,11 +89,13 @@ function SearchContent() {
       setUsers(filteredUsers)
       setCrews(filteredCrews)
     } else {
-      // In production, fetch from API
-      const crewResults = await searchCrews(searchQuery)
+      // Fetch from API in parallel
+      const [userResults, crewResults] = await Promise.all([
+        searchUsers(searchQuery),
+        searchCrews(searchQuery)
+      ])
+      setUsers(userResults)
       setCrews(crewResults)
-      // Would also search users via API
-      setUsers([])
     }
 
     setLoading(false)

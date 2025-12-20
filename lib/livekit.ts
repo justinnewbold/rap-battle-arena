@@ -42,6 +42,7 @@ export class LiveKitManager {
   private room: Room | null = null
   private audioTrack: LocalTrackPublication | null = null
   private eventHandlers: LiveKitEventHandler = {}
+  private audioElements: Map<string, HTMLMediaElement[]> = new Map()
 
   constructor() {}
 
@@ -97,16 +98,37 @@ export class LiveKitManager {
     this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
       this.eventHandlers.onTrackSubscribed?.(track, participant)
 
-      // Auto-play audio tracks
+      // Auto-play audio tracks with proper tracking
       if (track.kind === Track.Kind.Audio) {
         const audioElement = track.attach()
         document.body.appendChild(audioElement)
+
+        // Track the element for cleanup
+        const participantId = participant.identity
+        const existing = this.audioElements.get(participantId) || []
+        existing.push(audioElement)
+        this.audioElements.set(participantId, existing)
       }
     })
 
     this.room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
       this.eventHandlers.onTrackUnsubscribed?.(track, participant)
-      track.detach()
+
+      // Detach and clean up audio elements
+      const elements = track.detach()
+      elements.forEach(el => {
+        el.remove()
+      })
+
+      // Clean up tracked elements for this participant
+      const participantId = participant.identity
+      const tracked = this.audioElements.get(participantId) || []
+      tracked.forEach(el => {
+        if (el.parentNode) {
+          el.remove()
+        }
+      })
+      this.audioElements.delete(participantId)
     })
 
     this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
@@ -177,6 +199,16 @@ export class LiveKitManager {
   }
 
   async disconnect(): Promise<void> {
+    // Clean up all tracked audio elements
+    this.audioElements.forEach((elements) => {
+      elements.forEach(el => {
+        if (el.parentNode) {
+          el.remove()
+        }
+      })
+    })
+    this.audioElements.clear()
+
     if (this.room) {
       await this.room.disconnect()
       this.room = null

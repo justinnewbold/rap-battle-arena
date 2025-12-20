@@ -5,17 +5,25 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Mic2, MicOff, SkipForward, Trophy, Volume2, VolumeX, ArrowLeft,
-  Users, Vote, Eye, ThumbsUp
+  Users, Vote, Eye, ThumbsUp, Music
 } from 'lucide-react'
 import { useUserStore, useBattleStore } from '@/lib/store'
 import {
-  supabase, getBattle, Battle, Profile,
+  supabase, getBattle, Battle, Profile, Beat,
   castVote, getVoteCounts, VoteCounts, getSpectatorCount, isUserSpectator,
   ChatMessage
 } from '@/lib/supabase'
 import SpectatorChat from '@/components/SpectatorChat'
 import { getAvatarUrl, cn } from '@/lib/utils'
 import { useSounds } from '@/lib/sounds'
+import { getBeatGenerator } from '@/lib/beat-generator'
+import { DEMO_LIBRARY_BEATS, BeatStyle } from '@/lib/constants'
+
+// Extended beat type for demo beats with style
+interface DemoBeat extends Omit<Beat, 'audio_url'> {
+  style?: BeatStyle
+  audio_url: string | null
+}
 
 type BattlePhase = 'waiting' | 'countdown' | 'player1' | 'player2' | 'voting' | 'results'
 
@@ -64,15 +72,36 @@ function BattleContent() {
   const audioChunksRef = useRef<Blob[]>([])
   const sounds = useSounds()
 
+  // Beat playback
+  const [selectedBeat, setSelectedBeat] = useState<DemoBeat | null>(null)
+  const [isBeatPlaying, setIsBeatPlaying] = useState(false)
+  const [beatVolume, setBeatVolume] = useState(0.5)
+  const beatAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Supabase channel ref for cleanup
+  const battleChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+
   useEffect(() => {
     // Preload sounds on mount
     sounds.preload()
   }, [])
 
   useEffect(() => {
-    // Sync mute state with sound manager
+    // Sync mute state with sound manager and beat volume
     sounds.setEnabled(!isMuted)
-  }, [isMuted])
+    const effectiveVolume = isMuted ? 0 : beatVolume
+    if (beatAudioRef.current) {
+      beatAudioRef.current.volume = effectiveVolume
+    }
+    getBeatGenerator().setVolume(effectiveVolume)
+  }, [isMuted, beatVolume])
+
+  // Cleanup beat on unmount
+  useEffect(() => {
+    return () => {
+      stopBeat()
+    }
+  }, [])
 
   useEffect(() => {
     if (!user) {
@@ -88,6 +117,11 @@ function BattleContent() {
 
     return () => {
       resetBattle()
+      // Cleanup Supabase channel subscription
+      if (battleChannelRef.current) {
+        supabase.removeChannel(battleChannelRef.current)
+        battleChannelRef.current = null
+      }
     }
   }, [battleId])
 
@@ -108,8 +142,8 @@ function BattleContent() {
   useEffect(() => {
     if (phase === 'countdown' && countdown > 0) {
       sounds.play('countdown')
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
-      return () => clearTimeout(timer)
+      const countdownTimeout = setTimeout(() => setCountdown(countdown - 1), 1000)
+      return () => clearTimeout(countdownTimeout)
     } else if (phase === 'countdown' && countdown === 0) {
       sounds.play('round_start')
       startTurn()
@@ -164,6 +198,10 @@ function BattleContent() {
       updated_at: new Date().toISOString(),
     })
 
+    // Set a random demo beat for the battle
+    const randomBeat = DEMO_LIBRARY_BEATS[Math.floor(Math.random() * DEMO_LIBRARY_BEATS.length)]
+    setSelectedBeat(randomBeat as DemoBeat)
+
     setBattle({
       id: battleId,
       room_code: 'DEMO',
@@ -173,7 +211,7 @@ function BattleContent() {
       winner_id: null,
       current_round: 1,
       total_rounds: 2,
-      beat_id: null,
+      beat_id: randomBeat.id,
       player1_total_score: null,
       player2_total_score: null,
       created_at: new Date().toISOString(),
@@ -200,6 +238,19 @@ function BattleContent() {
       setPlayer2(loadedBattle.player2 || null)
       setTotalRounds(loadedBattle.total_rounds)
 
+      // Load beat if one was selected for this battle
+      if (loadedBattle.beat_id) {
+        const { data: beat } = await supabase
+          .from('beats')
+          .select('*')
+          .eq('id', loadedBattle.beat_id)
+          .single()
+
+        if (beat) {
+          setSelectedBeat(beat as DemoBeat)
+        }
+      }
+
       // Check if user is a contestant
       const isContestant = user?.id === loadedBattle.player1_id || user?.id === loadedBattle.player2_id
       if (!isContestant) {
@@ -211,6 +262,11 @@ function BattleContent() {
       setSpectatorCount(count)
 
       // Subscribe to battle updates
+      // Clean up any existing channel first
+      if (battleChannelRef.current) {
+        supabase.removeChannel(battleChannelRef.current)
+      }
+
       const channel = supabase
         .channel(`battle-${battleId}`)
         .on(
@@ -229,15 +285,59 @@ function BattleContent() {
         )
         .subscribe()
 
+      // Store channel ref for cleanup
+      battleChannelRef.current = channel
+
       if (loadedBattle.status === 'ready') {
         setPhase('countdown')
       }
     }
   }
 
+  // Beat playback functions
+  function startBeat() {
+    if (!selectedBeat || isBeatPlaying) return
+
+    const generator = getBeatGenerator()
+    const effectiveVolume = isMuted ? 0 : beatVolume
+
+    // Check if this is a demo beat (has style) or uploaded beat (has audio_url)
+    if (selectedBeat.style && (selectedBeat.id.startsWith('demo-') || selectedBeat.id.startsWith('lib-'))) {
+      // Use Web Audio API beat generator
+      generator.start({ name: selectedBeat.name, bpm: selectedBeat.bpm, style: selectedBeat.style })
+      generator.setVolume(effectiveVolume)
+      setIsBeatPlaying(true)
+    } else if (selectedBeat.audio_url) {
+      // Use HTML5 Audio for uploaded beats
+      const audio = new Audio(selectedBeat.audio_url)
+      audio.loop = true
+      audio.volume = effectiveVolume
+      audio.play().catch(err => console.error('Beat playback error:', err))
+      beatAudioRef.current = audio
+      setIsBeatPlaying(true)
+    }
+  }
+
+  function stopBeat() {
+    const generator = getBeatGenerator()
+    generator.stop()
+
+    if (beatAudioRef.current) {
+      beatAudioRef.current.pause()
+      beatAudioRef.current.src = ''
+      beatAudioRef.current = null
+    }
+    setIsBeatPlaying(false)
+  }
+
   function startTurn() {
     setTimer(ROUND_DURATION)
     setPhase(currentTurn === 1 ? 'player1' : 'player2')
+
+    // Start beat playback when turn begins
+    if (selectedBeat) {
+      startBeat()
+    }
 
     // Auto-start recording for current player (non-spectators)
     if (!isSpectator && isDemo && currentTurn === 1) {
@@ -275,6 +375,7 @@ function BattleContent() {
 
   function endTurn() {
     stopRecording()
+    stopBeat() // Stop beat when turn ends
     sounds.play('round_end')
 
     // Check if round is complete (both players went)
@@ -360,7 +461,8 @@ function BattleContent() {
       // Battle complete - determine winner
       calculateWinner()
     } else {
-      // Next round
+      // Next round - reset vote counts for per-round voting
+      setVoteCounts({ player1Votes: 0, player2Votes: 0, totalVotes: 0 })
       setCurrentRound(currentRound + 1)
       setCurrentTurn(1)
       setCountdown(COUNTDOWN_DURATION)
@@ -572,6 +674,42 @@ function BattleContent() {
             )}
           </motion.div>
         </div>
+
+        {/* Beat Playing Indicator with Volume Control */}
+        {isBeatPlaying && selectedBeat && (phase === 'player1' || phase === 'player2') && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-2 mb-4"
+          >
+            <div className="flex items-center gap-3 bg-gold-500/20 border border-gold-500/30 rounded-full px-6 py-3">
+              <Music className="w-5 h-5 text-gold-400 animate-pulse" />
+              <span className="text-gold-400 font-medium">
+                {selectedBeat.name} • {selectedBeat.bpm} BPM
+              </span>
+            </div>
+            <div className="flex items-center gap-2 bg-dark-800/80 rounded-full px-4 py-2">
+              <button
+                onClick={() => setIsMuted(!isMuted)}
+                className="p-1 hover:bg-dark-700 rounded transition-colors"
+              >
+                {isMuted ? <VolumeX className="w-4 h-4 text-dark-400" /> : <Volume2 className="w-4 h-4 text-gold-400" />}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={beatVolume}
+                onChange={(e) => setBeatVolume(Number(e.target.value))}
+                className="w-24 h-1.5 bg-dark-600 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-gold-400 [&::-webkit-slider-thumb]:rounded-full"
+              />
+              <span className="text-xs text-dark-400 w-8">
+                {Math.round(beatVolume * 100)}%
+              </span>
+            </div>
+          </motion.div>
+        )}
 
         {/* Recording Indicator (for contestants) */}
         {isRecording && !isSpectator && (

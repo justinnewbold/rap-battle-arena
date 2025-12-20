@@ -2,18 +2,19 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Trophy, Users, Calendar, Clock, Crown, ArrowLeft,
-  Swords, Gift, ChevronRight, Check, X, User
+  Swords, Gift, ChevronRight, Check, X, User, Play,
+  Info, Shield, AlertCircle, Share2, Copy, MessageCircle
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
   Tournament, TournamentParticipant, TournamentMatch,
   getTournament, getTournamentParticipants, getTournamentMatches,
-  joinTournament, leaveTournament, isUserInTournament
+  joinTournament, leaveTournament, isUserInTournament, supabase
 } from '@/lib/supabase'
-import { getAvatarUrl, cn } from '@/lib/utils'
+import { getAvatarUrl, cn, generateRoomCode } from '@/lib/utils'
 
 // Demo data
 const DEMO_TOURNAMENT: Tournament = {
@@ -68,7 +69,11 @@ export default function TournamentDetailPage() {
   const [matches, setMatches] = useState<TournamentMatch[]>([])
   const [loading, setLoading] = useState(true)
   const [isJoined, setIsJoined] = useState(false)
-  const [activeTab, setActiveTab] = useState<'bracket' | 'participants'>('bracket')
+  const [activeTab, setActiveTab] = useState<'bracket' | 'participants' | 'rules'>('bracket')
+  const [selectedMatch, setSelectedMatch] = useState<TournamentMatch | null>(null)
+  const [showMatchModal, setShowMatchModal] = useState(false)
+  const [startingMatch, setStartingMatch] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!user) {
@@ -128,6 +133,68 @@ export default function TournamentDetailPage() {
       setIsJoined(false)
       loadTournament()
     }
+  }
+
+  function handleMatchClick(match: TournamentMatch) {
+    if (match.status === 'complete' || match.status === 'pending') return
+    setSelectedMatch(match)
+    setShowMatchModal(true)
+  }
+
+  async function handleStartMatch() {
+    if (!selectedMatch || !user) return
+
+    // Check if user is one of the players
+    const isPlayer = selectedMatch.player1_id === user.id || selectedMatch.player2_id === user.id
+    if (!isPlayer && !isDemo) {
+      alert('Only match participants can start the battle')
+      return
+    }
+
+    setStartingMatch(true)
+
+    if (isDemo) {
+      // For demo, just navigate to a demo battle
+      router.push(`/battle/demo-${Date.now()}`)
+      return
+    }
+
+    try {
+      // Create a battle room for this match
+      const roomCode = generateRoomCode()
+      const { data: battle, error } = await supabase
+        .from('battles')
+        .insert({
+          player1_id: selectedMatch.player1_id,
+          room_code: roomCode,
+          status: 'waiting',
+          total_rounds: 2,
+          voting_style: 'overall'
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Update the tournament match with the battle ID
+      await supabase
+        .from('tournament_matches')
+        .update({ battle_id: battle.id, status: 'in_progress' })
+        .eq('id', selectedMatch.id)
+
+      // Navigate to the battle
+      router.push(`/battle/${battle.id}`)
+    } catch (error) {
+      console.error('Error starting match:', error)
+      setStartingMatch(false)
+    }
+  }
+
+  function handleShare() {
+    const url = `${window.location.origin}/tournaments/${tournamentId}`
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   function getRoundName(round: number, totalRounds: number) {
@@ -285,24 +352,47 @@ export default function TournamentDetailPage() {
           <button
             onClick={() => setActiveTab('bracket')}
             className={cn(
-              "px-4 py-2 rounded-lg font-medium transition-all",
+              "px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2",
               activeTab === 'bracket'
                 ? 'bg-gold-500 text-black'
                 : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
             )}
           >
+            <Swords className="w-4 h-4" />
             Bracket
           </button>
           <button
             onClick={() => setActiveTab('participants')}
             className={cn(
-              "px-4 py-2 rounded-lg font-medium transition-all",
+              "px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2",
               activeTab === 'participants'
                 ? 'bg-gold-500 text-black'
                 : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
             )}
           >
+            <Users className="w-4 h-4" />
             Participants ({participants.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('rules')}
+            className={cn(
+              "px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2",
+              activeTab === 'rules'
+                ? 'bg-gold-500 text-black'
+                : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
+            )}
+          >
+            <Info className="w-4 h-4" />
+            Rules
+          </button>
+
+          {/* Share Button */}
+          <button
+            onClick={handleShare}
+            className="ml-auto px-4 py-2 rounded-lg font-medium transition-all bg-dark-800 text-dark-300 hover:bg-dark-700 flex items-center gap-2"
+          >
+            {copied ? <Check className="w-4 h-4 text-green-400" /> : <Share2 className="w-4 h-4" />}
+            {copied ? 'Copied!' : 'Share'}
           </button>
         </div>
 
@@ -327,11 +417,12 @@ export default function TournamentDetailPage() {
                       {matchesByRound[round]?.map((match) => (
                         <div
                           key={match.id}
+                          onClick={() => handleMatchClick(match)}
                           className={cn(
-                            "bg-dark-800 rounded-xl p-3 w-56 border",
-                            match.status === 'in_progress' ? 'border-fire-500/50' :
+                            "bg-dark-800 rounded-xl p-3 w-56 border transition-all",
+                            match.status === 'in_progress' ? 'border-fire-500/50 cursor-pointer hover:border-fire-500' :
                             match.status === 'complete' ? 'border-dark-600' :
-                            match.status === 'ready' ? 'border-green-500/50' :
+                            match.status === 'ready' ? 'border-green-500/50 cursor-pointer hover:border-green-500' :
                             'border-dark-700'
                           )}
                         >
@@ -339,12 +430,13 @@ export default function TournamentDetailPage() {
                           {match.status === 'in_progress' && (
                             <div className="text-xs text-fire-400 font-medium mb-2 flex items-center gap-1">
                               <span className="w-2 h-2 bg-fire-500 rounded-full animate-pulse" />
-                              LIVE
+                              LIVE - Click to Watch
                             </div>
                           )}
                           {match.status === 'ready' && (
-                            <div className="text-xs text-green-400 font-medium mb-2">
-                              Ready to Start
+                            <div className="text-xs text-green-400 font-medium mb-2 flex items-center gap-1">
+                              <Play className="w-3 h-3" />
+                              Ready - Click to Start
                             </div>
                           )}
 
@@ -496,6 +588,257 @@ export default function TournamentDetailPage() {
             )}
           </motion.div>
         )}
+
+        {/* Rules Tab */}
+        {activeTab === 'rules' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card"
+          >
+            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <Shield className="w-6 h-6 text-gold-400" />
+              Tournament Rules
+            </h2>
+
+            <div className="space-y-6">
+              {/* Format */}
+              <div className="bg-dark-800 rounded-xl p-4">
+                <h3 className="font-bold mb-3 flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-gold-400" />
+                  Format
+                </h3>
+                <ul className="space-y-2 text-dark-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-gold-400">•</span>
+                    <span className="capitalize">{tournament.format.replace('_', ' ')} tournament</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-gold-400">•</span>
+                    <span>{tournament.max_participants} participants maximum</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-gold-400">•</span>
+                    <span>2 rounds per battle, 60 seconds each</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-gold-400">•</span>
+                    <span>AI judges determine the winner of each battle</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Scoring */}
+              <div className="bg-dark-800 rounded-xl p-4">
+                <h3 className="font-bold mb-3 flex items-center gap-2">
+                  <Swords className="w-5 h-5 text-fire-400" />
+                  Scoring Criteria
+                </h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">Flow</span>
+                    <span className="text-ice-400">25%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">Rhyme Complexity</span>
+                    <span className="text-ice-400">20%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">Punchlines</span>
+                    <span className="text-ice-400">20%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">Delivery</span>
+                    <span className="text-ice-400">15%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">Creativity</span>
+                    <span className="text-ice-400">10%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">Rebuttal</span>
+                    <span className="text-ice-400">10%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Code of Conduct */}
+              <div className="bg-dark-800 rounded-xl p-4">
+                <h3 className="font-bold mb-3 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-400" />
+                  Code of Conduct
+                </h3>
+                <ul className="space-y-2 text-dark-300 text-sm">
+                  <li className="flex items-start gap-2">
+                    <X className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <span>No hate speech, racism, or discrimination</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <X className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <span>No personal attacks on opponents' families</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <X className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <span>No threats of violence</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+                    <span>Creative disses and wordplay are encouraged</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+                    <span>Respect your opponent before and after battles</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Prizes */}
+              {tournament.prize_pool && (
+                <div className="bg-gradient-to-r from-gold-500/20 to-gold-600/10 rounded-xl p-4 border border-gold-500/30">
+                  <h3 className="font-bold mb-3 flex items-center gap-2">
+                    <Gift className="w-5 h-5 text-gold-400" />
+                    Prize Pool: {tournament.prize_pool}
+                  </h3>
+                  <ul className="space-y-2 text-dark-300 text-sm">
+                    <li className="flex items-center gap-2">
+                      <Crown className="w-4 h-4 text-gold-400" />
+                      <span>1st Place: 50% of prize pool</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Crown className="w-4 h-4 text-gray-400" />
+                      <span>2nd Place: 30% of prize pool</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Crown className="w-4 h-4 text-orange-500" />
+                      <span>3rd Place: 20% of prize pool</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Match Modal */}
+        <AnimatePresence>
+          {showMatchModal && selectedMatch && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+              onClick={() => setShowMatchModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-dark-900 rounded-2xl p-6 max-w-md w-full border border-dark-700"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold">
+                    {selectedMatch.status === 'ready' ? 'Start Match' : 'Match In Progress'}
+                  </h3>
+                  <button
+                    onClick={() => setShowMatchModal(false)}
+                    className="p-2 hover:bg-dark-800 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Players */}
+                <div className="flex items-center justify-center gap-4 mb-6">
+                  {/* Player 1 */}
+                  <div className="text-center">
+                    {selectedMatch.player1 ? (
+                      <>
+                        <img
+                          src={getAvatarUrl(selectedMatch.player1.username, selectedMatch.player1.avatar_url)}
+                          alt={selectedMatch.player1.username}
+                          className="w-16 h-16 rounded-full mx-auto mb-2 border-2 border-fire-500"
+                        />
+                        <p className="font-bold">{selectedMatch.player1.username}</p>
+                        <p className="text-xs text-dark-400">{selectedMatch.player1.elo_rating} ELO</p>
+                      </>
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-dark-700 flex items-center justify-center mx-auto">
+                        <User className="w-8 h-8 text-dark-500" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-2xl font-bold text-dark-500">VS</div>
+
+                  {/* Player 2 */}
+                  <div className="text-center">
+                    {selectedMatch.player2 ? (
+                      <>
+                        <img
+                          src={getAvatarUrl(selectedMatch.player2.username, selectedMatch.player2.avatar_url)}
+                          alt={selectedMatch.player2.username}
+                          className="w-16 h-16 rounded-full mx-auto mb-2 border-2 border-ice-500"
+                        />
+                        <p className="font-bold">{selectedMatch.player2.username}</p>
+                        <p className="text-xs text-dark-400">{selectedMatch.player2.elo_rating} ELO</p>
+                      </>
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-dark-700 flex items-center justify-center mx-auto">
+                        <User className="w-8 h-8 text-dark-500" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                {selectedMatch.status === 'ready' && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-dark-400 text-center mb-4">
+                      {(selectedMatch.player1_id === user?.id || selectedMatch.player2_id === user?.id)
+                        ? "You're in this match! Ready to battle?"
+                        : "Waiting for participants to start the match"}
+                    </p>
+                    {(selectedMatch.player1_id === user?.id || selectedMatch.player2_id === user?.id || isDemo) && (
+                      <button
+                        onClick={handleStartMatch}
+                        disabled={startingMatch}
+                        className="btn-fire w-full flex items-center justify-center gap-2"
+                      >
+                        {startingMatch ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Starting...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-5 h-5" />
+                            Start Battle
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {selectedMatch.status === 'in_progress' && selectedMatch.battle_id && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-dark-400 text-center mb-4">
+                      This match is currently in progress!
+                    </p>
+                    <button
+                      onClick={() => router.push(`/battle/${selectedMatch.battle_id}`)}
+                      className="btn-fire w-full flex items-center justify-center gap-2"
+                    >
+                      <Swords className="w-5 h-5" />
+                      Watch Battle
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )

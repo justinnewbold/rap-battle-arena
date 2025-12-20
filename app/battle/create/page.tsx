@@ -3,12 +3,25 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Copy, Check, Users, ArrowLeft, Loader2, Settings, Vote, Eye, EyeOff, Music, Play, Pause, Share2 } from 'lucide-react'
+import { Copy, Check, Users, ArrowLeft, Loader2, Settings, Vote, Eye, EyeOff, Music, Play, Pause, Share2, Volume2 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { supabase, createBattle, Battle, CreateBattleOptions, getBeats, Beat } from '@/lib/supabase'
+import { supabase, createBattle, Battle, CreateBattleOptions, getBeats, Beat, getUserBeats, UserBeat } from '@/lib/supabase'
 import { getAvatarUrl, generateRoomCode, cn } from '@/lib/utils'
+import { DEMO_LIBRARY_BEATS, DEMO_USER_BEATS, BeatStyle } from '@/lib/constants'
+import { getBeatGenerator } from '@/lib/beat-generator'
 
 type Step = 'settings' | 'waiting'
+
+// Extended beat type that includes style for generated beats
+interface DemoBeat extends Omit<Beat, 'audio_url'> {
+  style?: BeatStyle
+  audio_url: string | null
+}
+
+interface DemoUserBeat extends Omit<UserBeat, 'audio_url'> {
+  style?: BeatStyle
+  audio_url: string | null
+}
 
 function CreateBattleContent() {
   const router = useRouter()
@@ -27,9 +40,15 @@ function CreateBattleContent() {
   const [showVotesDuringBattle, setShowVotesDuringBattle] = useState(false)
 
   // Beat selection
-  const [beats, setBeats] = useState<Beat[]>([])
-  const [selectedBeat, setSelectedBeat] = useState<Beat | null>(null)
+  const [beats, setBeats] = useState<DemoBeat[]>([])
+  const [userBeats, setUserBeats] = useState<DemoUserBeat[]>([])
+  const [selectedBeat, setSelectedBeat] = useState<DemoBeat | null>(null)
   const [playingBeatId, setPlayingBeatId] = useState<string | null>(null)
+  const [beatSection, setBeatSection] = useState<'all' | 'mine'>('all')
+
+  // Audio playback state
+  const [audioLoading, setAudioLoading] = useState(false)
+  const [audioError, setAudioError] = useState<string | null>(null)
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
 
   useEffect(() => {
@@ -41,8 +60,9 @@ function CreateBattleContent() {
   }, [user, router])
 
   useEffect(() => {
-    // Cleanup audio on unmount
+    // Cleanup on unmount
     return () => {
+      getBeatGenerator().stop()
       if (audioRef) {
         audioRef.pause()
         audioRef.src = ''
@@ -51,38 +71,83 @@ function CreateBattleContent() {
   }, [audioRef])
 
   async function loadBeats() {
-    const loadedBeats = await getBeats()
-    setBeats(loadedBeats)
-    // Demo beats if none loaded
-    if (loadedBeats.length === 0) {
-      setBeats([
-        { id: 'demo-1', name: 'Street Heat', artist: 'BeatMaster', bpm: 90, audio_url: '', cover_url: null, duration: 180, is_premium: false },
-        { id: 'demo-2', name: 'Night Vibes', artist: 'ProducerX', bpm: 85, audio_url: '', cover_url: null, duration: 200, is_premium: false },
-        { id: 'demo-3', name: 'Battle Ready', artist: 'HipHopKing', bpm: 95, audio_url: '', cover_url: null, duration: 160, is_premium: false },
-        { id: 'demo-4', name: 'Underground Flow', artist: 'BeatMaster', bpm: 88, audio_url: '', cover_url: null, duration: 190, is_premium: true },
-      ])
+    if (isDemo) {
+      // In demo mode, always use demo beats
+      setBeats([...DEMO_LIBRARY_BEATS] as DemoBeat[])
+      setUserBeats([...DEMO_USER_BEATS] as DemoUserBeat[])
+      return
     }
+
+    const [loadedBeats, loadedUserBeats] = await Promise.all([
+      getBeats(),
+      user ? getUserBeats(user.id) : Promise.resolve([])
+    ])
+
+    // Use loaded beats or fallback to demo
+    setBeats(loadedBeats.length > 0 ? loadedBeats as DemoBeat[] : [...DEMO_LIBRARY_BEATS] as DemoBeat[])
+    setUserBeats(loadedUserBeats as DemoUserBeat[])
   }
 
-  function toggleBeatPlay(beat: Beat) {
-    if (!beat.audio_url) return
+  function toggleBeatPlay(beat: DemoBeat | DemoUserBeat) {
+    const generator = getBeatGenerator()
 
     if (playingBeatId === beat.id) {
       // Stop playing
+      generator.stop()
       if (audioRef) {
         audioRef.pause()
       }
       setPlayingBeatId(null)
-    } else {
-      // Play new beat
-      if (audioRef) {
-        audioRef.pause()
-      }
+      setAudioLoading(false)
+      return
+    }
+
+    // Stop any current playback
+    generator.stop()
+    if (audioRef) {
+      audioRef.pause()
+    }
+
+    // Check if this is a demo beat (has style) or uploaded beat (has audio_url)
+    const demoBeat = beat as DemoBeat
+    if (demoBeat.style && (beat.id.startsWith('demo-') || beat.id.startsWith('my-demo-'))) {
+      // Use Web Audio API beat generator
+      setAudioLoading(false)
+      setAudioError(null)
+      generator.start({ name: beat.name, bpm: beat.bpm, style: demoBeat.style || 'hiphop' })
+      setPlayingBeatId(beat.id)
+    } else if (beat.audio_url) {
+      // Use HTML5 Audio for uploaded beats
+      setAudioLoading(true)
+      setAudioError(null)
+
       const audio = new Audio(beat.audio_url)
       audio.loop = true
-      audio.play()
+      audio.volume = 0.5
+
+      audio.oncanplaythrough = () => {
+        setAudioLoading(false)
+        audio.play().catch(err => {
+          console.error('Playback error:', err)
+          setAudioError('Failed to play audio. Click to try again.')
+          setPlayingBeatId(null)
+          setAudioLoading(false)
+        })
+      }
+
+      audio.onerror = () => {
+        console.error('Audio load error for:', beat.audio_url)
+        setAudioError('Failed to load audio file')
+        setPlayingBeatId(null)
+        setAudioLoading(false)
+      }
+
+      audio.load()
       setAudioRef(audio)
       setPlayingBeatId(beat.id)
+    } else {
+      setAudioError('No audio available for this beat')
+      setTimeout(() => setAudioError(null), 3000)
     }
   }
 
@@ -96,10 +161,11 @@ function CreateBattleContent() {
     }
 
     // Stop any playing audio
+    getBeatGenerator().stop()
     if (audioRef) {
       audioRef.pause()
-      setPlayingBeatId(null)
     }
+    setPlayingBeatId(null)
 
     const options: CreateBattleOptions = {
       player1Id: user!.id,
@@ -107,7 +173,7 @@ function CreateBattleContent() {
       totalRounds,
       votingStyle,
       showVotesDuringBattle: votingStyle === 'per_round' ? showVotesDuringBattle : false,
-      beatId: selectedBeat?.id.startsWith('demo-') ? null : selectedBeat?.id
+      beatId: selectedBeat?.id.startsWith('demo-') || selectedBeat?.id.startsWith('my-demo-') ? null : selectedBeat?.id
     }
 
     const newBattle = await createBattle(options)
@@ -144,24 +210,35 @@ function CreateBattleContent() {
   }
 
   function handleDemoStart() {
+    getBeatGenerator().stop()
     router.push(`/battle/demo-${Date.now()}`)
   }
 
-  function handleCancel() {
+  async function handleCancel() {
+    getBeatGenerator().stop()
     if (battle) {
-      supabase.from('battles').delete().eq('id', battle.id)
+      try {
+        await supabase.from('battles').delete().eq('id', battle.id)
+      } catch (err) {
+        console.error('Error deleting battle:', err)
+      }
     }
     router.push('/dashboard')
   }
 
-  function handleBack() {
+  async function handleBack() {
     if (step === 'waiting') {
       if (battle) {
-        supabase.from('battles').delete().eq('id', battle.id)
+        try {
+          await supabase.from('battles').delete().eq('id', battle.id)
+        } catch (err) {
+          console.error('Error deleting battle:', err)
+        }
         setBattle(null)
       }
       setStep('settings')
     } else {
+      getBeatGenerator().stop()
       router.push('/dashboard')
     }
   }
@@ -284,10 +361,59 @@ function CreateBattleContent() {
                   <Music className="w-4 h-4 inline mr-2" />
                   Battle Beat (Optional)
                 </label>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+
+                {/* Audio Error Message */}
+                {audioError && (
+                  <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                    {audioError}
+                  </div>
+                )}
+
+                {/* Playing indicator */}
+                {playingBeatId && (
+                  <div className="mb-3 px-3 py-2 bg-green-500/10 border border-green-500/30 rounded-lg text-green-400 text-sm flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 animate-pulse" />
+                    <span>Playing beat preview...</span>
+                  </div>
+                )}
+
+                {/* Beat Section Tabs */}
+                {userBeats.length > 0 && (
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      onClick={() => setBeatSection('all')}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                        beatSection === 'all'
+                          ? 'bg-gold-500 text-black'
+                          : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
+                      )}
+                    >
+                      Library
+                    </button>
+                    <button
+                      onClick={() => setBeatSection('mine')}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
+                        beatSection === 'mine'
+                          ? 'bg-gold-500 text-black'
+                          : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
+                      )}
+                    >
+                      My Beats ({userBeats.length})
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-dark-600">
                   {/* No beat option */}
                   <button
-                    onClick={() => setSelectedBeat(null)}
+                    onClick={() => {
+                      setSelectedBeat(null)
+                      getBeatGenerator().stop()
+                      if (audioRef) audioRef.pause()
+                      setPlayingBeatId(null)
+                    }}
                     className={cn(
                       "w-full p-3 rounded-xl flex items-center gap-3 transition-all text-left",
                       selectedBeat === null
@@ -304,7 +430,57 @@ function CreateBattleContent() {
                     </div>
                   </button>
 
-                  {beats.map((beat) => (
+                  {/* User's beats (when "mine" tab selected) */}
+                  {beatSection === 'mine' && userBeats.map((beat) => (
+                    <div
+                      key={beat.id}
+                      className={cn(
+                        "w-full p-3 rounded-xl flex items-center gap-3 transition-all",
+                        selectedBeat?.id === beat.id
+                          ? 'bg-gold-500/20 border border-gold-500/30'
+                          : 'bg-dark-700 hover:bg-dark-600'
+                      )}
+                    >
+                      <button
+                        onClick={() => toggleBeatPlay(beat)}
+                        disabled={audioLoading && playingBeatId === beat.id}
+                        className={cn(
+                          "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                          playingBeatId === beat.id
+                            ? 'bg-purple-500 text-white'
+                            : 'bg-dark-600 hover:bg-dark-500'
+                        )}
+                      >
+                        {audioLoading && playingBeatId === beat.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : playingBeatId === beat.id ? (
+                          <Pause className="w-5 h-5" />
+                        ) : (
+                          <Play className="w-5 h-5 ml-0.5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setSelectedBeat(beat as DemoBeat)}
+                        className="flex-1 text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{beat.name}</p>
+                          <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">
+                            MY BEAT
+                          </span>
+                        </div>
+                        <p className="text-xs text-dark-400">
+                          {beat.artist} • {beat.bpm} BPM
+                        </p>
+                      </button>
+                      {selectedBeat?.id === beat.id && (
+                        <Check className="w-5 h-5 text-gold-400 shrink-0" />
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Library beats */}
+                  {beatSection === 'all' && beats.map((beat) => (
                     <div
                       key={beat.id}
                       className={cn(
@@ -317,6 +493,7 @@ function CreateBattleContent() {
                       {/* Play button */}
                       <button
                         onClick={() => toggleBeatPlay(beat)}
+                        disabled={audioLoading && playingBeatId === beat.id}
                         className={cn(
                           "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors",
                           playingBeatId === beat.id
@@ -324,7 +501,9 @@ function CreateBattleContent() {
                             : 'bg-dark-600 hover:bg-dark-500'
                         )}
                       >
-                        {playingBeatId === beat.id ? (
+                        {audioLoading && playingBeatId === beat.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : playingBeatId === beat.id ? (
                           <Pause className="w-5 h-5" />
                         ) : (
                           <Play className="w-5 h-5 ml-0.5" />

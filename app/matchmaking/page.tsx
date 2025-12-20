@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Mic2, X, Users, Zap } from 'lucide-react'
@@ -15,6 +15,7 @@ export default function MatchmakingPage() {
   const [status, setStatus] = useState<'searching' | 'found' | 'connecting'>('searching')
   const [opponent, setOpponent] = useState<Profile | null>(null)
   const [dots, setDots] = useState('')
+  const timerRef = useRef(matchmakingTime)
 
   useEffect(() => {
     if (!user) {
@@ -29,9 +30,10 @@ export default function MatchmakingPage() {
       setDots(prev => prev.length >= 3 ? '' : prev + '.')
     }, 500)
 
-    // Timer
+    // Timer - use ref to avoid stale closure
     const timerInterval = setInterval(() => {
-      setMatchmakingTime(matchmakingTime + 1)
+      timerRef.current += 1
+      setMatchmakingTime(timerRef.current)
     }, 1000)
 
     // Demo mode: simulate finding an opponent after 3-5 seconds

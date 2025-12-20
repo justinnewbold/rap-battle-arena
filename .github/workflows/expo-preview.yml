@@ -1,0 +1,96 @@
+name: Expo Preview
+
+on:
+  push:
+    branches:
+      - '*'
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/expo-preview.yml'
+  workflow_dispatch:
+
+env:
+  EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+jobs:
+  preview:
+    name: Build Preview
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Expo CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create EAS Update
+        id: eas-update
+        run: |
+          # Run EAS Update and capture output
+          UPDATE_OUTPUT=$(eas update --branch preview --message "Preview: ${{ github.event.head_commit.message }}" --non-interactive --json)
+
+          # Extract the update group ID
+          UPDATE_GROUP_ID=$(echo "$UPDATE_OUTPUT" | jq -r '.[0].group')
+
+          # Generate QR code URL
+          QR_URL="https://qr.expo.dev/eas-update?updateId=${UPDATE_GROUP_ID}&appScheme=rapbattlearena"
+          PREVIEW_URL="https://expo.dev/preview/update?message=Preview&updateRuntimeVersion=1.0.0&createdAt=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)&slug=rap-battle-arena&projectId=\${{ vars.EXPO_PROJECT_ID }}&group=${UPDATE_GROUP_ID}"
+
+          echo "update_group_id=${UPDATE_GROUP_ID}" >> $GITHUB_OUTPUT
+          echo "qr_url=${QR_URL}" >> $GITHUB_OUTPUT
+          echo "preview_url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
+
+      - name: Post Preview Link
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const updateId = '${{ steps.eas-update.outputs.update_group_id }}';
+            const qrUrl = '${{ steps.eas-update.outputs.qr_url }}';
+
+            const summary = `## 📱 Expo Preview Ready!
+
+            ### Scan QR Code with Expo Go
+            ![QR Code](${qrUrl})
+
+            **Update ID:** \`${updateId}\`
+
+            ### How to view:
+            1. Install **Expo Go** on your phone ([iOS](https://apps.apple.com/app/expo-go/id982107779) | [Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
+            2. Scan the QR code above
+            3. The app will load automatically!
+
+            ---
+            *Triggered by commit: ${{ github.sha }}*`;
+
+            await core.summary.addRaw(summary).write();
+
+      - name: Comment on PR (if applicable)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const qrUrl = '${{ steps.eas-update.outputs.qr_url }}';
+            const updateId = '${{ steps.eas-update.outputs.update_group_id }}';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 📱 Preview Ready!\n\n![QR Code](${qrUrl})\n\nScan with **Expo Go** to test this PR!\n\nUpdate ID: \`${updateId}\``
+            });

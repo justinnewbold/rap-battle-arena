@@ -158,7 +158,7 @@ export default function HistoryPage() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.03 }}
-                    onClick={() => opponent && router.push(`/profile/${opponent.id}`)}
+                    onClick={() => router.push(`/battle/replay/${battle.id}`)}
                     className={cn(
                       "flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all hover:scale-[1.01]",
                       won
