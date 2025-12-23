@@ -73,3 +73,40 @@ export function generateRoomCode(): string {
   }
   return code
 }
+
+/**
+ * Validates a room code format
+ * Room codes are 6 characters, alphanumeric (excluding confusing chars like 0, O, 1, I)
+ */
+export function validateRoomCode(code: string): { valid: boolean; error?: string } {
+  if (!code) {
+    return { valid: false, error: 'Room code is required' }
+  }
+
+  // Remove whitespace and convert to uppercase
+  const cleaned = code.trim().toUpperCase()
+
+  if (cleaned.length !== 6) {
+    return { valid: false, error: 'Room code must be 6 characters' }
+  }
+
+  // Valid characters: A-Z (except I, O) and 2-9
+  const validChars = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/
+  if (!validChars.test(cleaned)) {
+    return { valid: false, error: 'Room code contains invalid characters' }
+  }
+
+  return { valid: true }
+}
+
+/**
+ * Sanitizes a room code input
+ * Removes invalid characters and converts to uppercase
+ */
+export function sanitizeRoomCode(code: string): string {
+  return code
+    .trim()
+    .toUpperCase()
+    .replace(/[^ABCDEFGHJKLMNPQRSTUVWXYZ23456789]/g, '')
+    .slice(0, 6)
+}

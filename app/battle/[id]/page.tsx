@@ -8,6 +8,7 @@ import {
   Users, Vote, Eye, ThumbsUp, Music
 } from 'lucide-react'
 import { useUserStore, useBattleStore } from '@/lib/store'
+import { useToast } from '@/components/Toast'
 import {
   supabase, getBattle, Battle, Profile, Beat,
   castVote, getVoteCounts, VoteCounts, getSpectatorCount, isUserSpectator,
@@ -39,6 +40,7 @@ function BattleContent() {
 
   const { user, isDemo } = useUserStore()
   const { resetBattle } = useBattleStore()
+  const toast = useToast()
 
   // Battle data
   const [battle, setBattle] = useState<Battle | null>(null)
@@ -452,6 +454,7 @@ function BattleContent() {
         // Revert UI state on error
         setVotedFor(null)
         setHasVoted(false)
+        toast.error('Failed to cast vote. Please try again.')
       }
     } else {
       // Demo: increment vote count
