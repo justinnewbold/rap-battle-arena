@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Copy, Check, Users, ArrowLeft, Loader2, Settings, Vote, Eye, EyeOff, Music, Play, Pause, Share2, Volume2 } from 'lucide-react'
@@ -51,6 +51,9 @@ function CreateBattleContent() {
   const [audioError, setAudioError] = useState<string | null>(null)
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
 
+  // Supabase channel ref for cleanup
+  const battleChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+
   useEffect(() => {
     if (!user) {
       router.push('/')
@@ -66,6 +69,11 @@ function CreateBattleContent() {
       if (audioRef) {
         audioRef.pause()
         audioRef.src = ''
+      }
+      // Clean up Supabase channel subscription
+      if (battleChannelRef.current) {
+        supabase.removeChannel(battleChannelRef.current)
+        battleChannelRef.current = null
       }
     }
   }, [audioRef])
@@ -180,6 +188,11 @@ function CreateBattleContent() {
     if (newBattle) {
       setBattle(newBattle)
 
+      // Clean up any existing channel first
+      if (battleChannelRef.current) {
+        supabase.removeChannel(battleChannelRef.current)
+      }
+
       const channel = supabase
         .channel(`battle-${newBattle.id}`)
         .on(
@@ -200,6 +213,9 @@ function CreateBattleContent() {
           }
         )
         .subscribe()
+
+      // Store channel ref for cleanup
+      battleChannelRef.current = channel
     }
   }
 
@@ -216,6 +232,11 @@ function CreateBattleContent() {
 
   async function handleCancel() {
     getBeatGenerator().stop()
+    // Clean up channel subscription
+    if (battleChannelRef.current) {
+      supabase.removeChannel(battleChannelRef.current)
+      battleChannelRef.current = null
+    }
     if (battle) {
       try {
         await supabase.from('battles').delete().eq('id', battle.id)
@@ -228,6 +249,11 @@ function CreateBattleContent() {
 
   async function handleBack() {
     if (step === 'waiting') {
+      // Clean up channel subscription
+      if (battleChannelRef.current) {
+        supabase.removeChannel(battleChannelRef.current)
+        battleChannelRef.current = null
+      }
       if (battle) {
         try {
           await supabase.from('battles').delete().eq('id', battle.id)

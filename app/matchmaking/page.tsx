@@ -16,6 +16,7 @@ export default function MatchmakingPage() {
   const [opponent, setOpponent] = useState<Profile | null>(null)
   const [dots, setDots] = useState('')
   const timerRef = useRef(matchmakingTime)
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   useEffect(() => {
     if (!user) {
@@ -51,11 +52,20 @@ export default function MatchmakingPage() {
     }
 
     // Real matchmaking: join queue
-    joinMatchmakingQueue()
+    const initMatchmaking = async () => {
+      await joinMatchmakingQueue()
+    }
+    initMatchmaking()
 
     return () => {
       clearInterval(dotsInterval)
       clearInterval(timerInterval)
+      // Clean up Supabase channel subscription
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+        channelRef.current = null
+      }
+      // Fire and forget cleanup - can't await in cleanup function
       leaveMatchmakingQueue()
     }
   }, [])
@@ -92,17 +102,21 @@ export default function MatchmakingPage() {
           if (payload.new.status === 'matched' && payload.new.battle_id) {
             // Found a match!
             setStatus('found')
-            
+
             // Get opponent info
             if (payload.new.matched_with) {
-              const { data: oppProfile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', payload.new.matched_with)
-                .single()
-              
-              if (oppProfile) {
-                setOpponent(oppProfile)
+              try {
+                const { data: oppProfile } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', payload.new.matched_with)
+                  .single()
+
+                if (oppProfile) {
+                  setOpponent(oppProfile)
+                }
+              } catch (err) {
+                console.error('Error fetching opponent profile:', err)
               }
             }
 
@@ -118,8 +132,11 @@ export default function MatchmakingPage() {
       )
       .subscribe()
 
+    // Store channel ref for cleanup
+    channelRef.current = channel
+
     // Also check if we can match with someone
-    checkForMatch()
+    await checkForMatch()
   }
 
   async function checkForMatch() {
@@ -212,8 +229,13 @@ export default function MatchmakingPage() {
     }, 2000)
   }
 
-  function handleCancel() {
-    leaveMatchmakingQueue()
+  async function handleCancel() {
+    // Clean up channel subscription
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+    await leaveMatchmakingQueue()
     router.push('/dashboard')
   }
 

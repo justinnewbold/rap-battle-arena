@@ -137,9 +137,13 @@ export default function BattleScreen() {
     }, 1500);
   }
 
-  function cleanupBattle() {
+  async function cleanupBattle() {
     if (recording) {
-      recording.stopAndUnloadAsync();
+      try {
+        await recording.stopAndUnloadAsync();
+      } catch (err) {
+        console.error('Error cleaning up recording:', err);
+      }
     }
   }
 
@@ -179,8 +183,8 @@ export default function BattleScreen() {
     }
   }
 
-  function endTurn() {
-    stopRecording();
+  async function endTurn() {
+    await stopRecording();
 
     if (currentTurn === 2) {
       if (currentRound >= totalRounds) {

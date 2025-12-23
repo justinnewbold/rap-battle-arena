@@ -438,13 +438,20 @@ function BattleContent() {
     setHasVoted(true)
 
     if (!isDemo) {
-      const roundNum = battle.voting_style === 'per_round' ? currentRound : null
-      await castVote(battleId, user.id, playerId, roundNum)
+      try {
+        const roundNum = battle.voting_style === 'per_round' ? currentRound : null
+        await castVote(battleId, user.id, playerId, roundNum)
 
-      // Refresh vote counts
-      if (player1 && player2) {
-        const counts = await getVoteCounts(battleId, player1.id, player2.id, roundNum)
-        setVoteCounts(counts)
+        // Refresh vote counts
+        if (player1 && player2) {
+          const counts = await getVoteCounts(battleId, player1.id, player2.id, roundNum)
+          setVoteCounts(counts)
+        }
+      } catch (err) {
+        console.error('Error casting vote:', err)
+        // Revert UI state on error
+        setVotedFor(null)
+        setHasVoted(false)
       }
     } else {
       // Demo: increment vote count
