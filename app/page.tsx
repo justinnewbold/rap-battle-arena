@@ -37,8 +37,8 @@ export default function HomePage() {
   }
 
   async function loadLeaderboard() {
-    const data = await getLeaderboard(5)
-    setLeaderboard(data)
+    const result = await getLeaderboard(5)
+    setLeaderboard(result.data)
   }
 
   function handleDemoMode() {
