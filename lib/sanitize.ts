@@ -70,7 +70,7 @@ export function sanitizeUsername(username: string): string {
 }
 
 // Profanity filter (basic implementation)
-const profanityList = new Set([
+const profanityList = new Set<string>([
   // Add words to filter here
   // This is a minimal example - in production use a proper profanity library
 ])
@@ -211,5 +211,5 @@ export function generateNonce(): string {
       array[i] = Math.floor(Math.random() * 256)
     }
   }
-  return btoa(String.fromCharCode(...array))
+  return btoa(String.fromCharCode(...Array.from(array)))
 }
