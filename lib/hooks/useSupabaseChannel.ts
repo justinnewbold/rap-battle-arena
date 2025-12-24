@@ -226,10 +226,10 @@ export function usePresence({
         onSync?.(state)
       })
       .on('presence', { event: 'join' }, ({ key, currentPresences, newPresences }) => {
-        onJoin?.(key, currentPresences as PresenceState[], newPresences as PresenceState[])
+        onJoin?.(key, currentPresences as unknown as PresenceState[], newPresences as unknown as PresenceState[])
       })
       .on('presence', { event: 'leave' }, ({ key, currentPresences, leftPresences }) => {
-        onLeave?.(key, currentPresences as PresenceState[], leftPresences as PresenceState[])
+        onLeave?.(key, currentPresences as unknown as PresenceState[], leftPresences as unknown as PresenceState[])
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {

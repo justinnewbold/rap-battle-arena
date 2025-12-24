@@ -28,29 +28,11 @@ export const LazySpectatorChat = dynamic(
   }
 )
 
-// Lazy load BeatSelector - heavy component with audio playback
-export const LazyBeatSelector = dynamic(
-  () => import('@/components/BeatSelector').then(mod => ({ default: mod.BeatSelector })),
-  {
-    loading: () => <LoadingSpinner />,
-    ssr: false,
-  }
-)
-
 // Lazy load AudioWaveform - uses Web Audio API
 export const LazyAudioWaveform = dynamic(
   () => import('@/components/AudioWaveform').then(mod => ({ default: mod.AudioWaveform })),
   {
     loading: () => <LoadingSpinner size="sm" />,
-    ssr: false,
-  }
-)
-
-// Lazy load BattleReplay - heavy video/audio component
-export const LazyBattleReplay = dynamic(
-  () => import('@/components/BattleReplay').then(mod => ({ default: mod.BattleReplay })),
-  {
-    loading: () => <LoadingSpinner size="lg" />,
     ssr: false,
   }
 )

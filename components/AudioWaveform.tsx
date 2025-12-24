@@ -25,7 +25,7 @@ export function AudioWaveform({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const dataArrayRef = useRef<Uint8Array | null>(null)
+  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
   const [isActive, setIsActive] = useState(false)
