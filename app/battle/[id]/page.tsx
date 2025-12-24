@@ -8,6 +8,7 @@ import {
   Users, Vote, Eye, ThumbsUp, Music
 } from 'lucide-react'
 import { useUserStore, useBattleStore } from '@/lib/store'
+import { useToast } from '@/components/Toast'
 import {
   supabase, getBattle, Battle, Profile, Beat,
   castVote, getVoteCounts, VoteCounts, getSpectatorCount, isUserSpectator,
@@ -39,6 +40,7 @@ function BattleContent() {
 
   const { user, isDemo } = useUserStore()
   const { resetBattle } = useBattleStore()
+  const toast = useToast()
 
   // Battle data
   const [battle, setBattle] = useState<Battle | null>(null)
@@ -438,13 +440,21 @@ function BattleContent() {
     setHasVoted(true)
 
     if (!isDemo) {
-      const roundNum = battle.voting_style === 'per_round' ? currentRound : null
-      await castVote(battleId, user.id, playerId, roundNum)
+      try {
+        const roundNum = battle.voting_style === 'per_round' ? currentRound : null
+        await castVote(battleId, user.id, playerId, roundNum)
 
-      // Refresh vote counts
-      if (player1 && player2) {
-        const counts = await getVoteCounts(battleId, player1.id, player2.id, roundNum)
-        setVoteCounts(counts)
+        // Refresh vote counts
+        if (player1 && player2) {
+          const counts = await getVoteCounts(battleId, player1.id, player2.id, roundNum)
+          setVoteCounts(counts)
+        }
+      } catch (err) {
+        console.error('Error casting vote:', err)
+        // Revert UI state on error
+        setVotedFor(null)
+        setHasVoted(false)
+        toast.error('Failed to cast vote. Please try again.')
       }
     } else {
       // Demo: increment vote count

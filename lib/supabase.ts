@@ -127,33 +127,63 @@ export async function updateProfile(userId: string, updates: Partial<Profile>): 
 
 export type LeaderboardTimeframe = 'all' | 'month' | 'week'
 
-export async function getLeaderboard(limit: number = 10, timeframe: LeaderboardTimeframe = 'all'): Promise<Profile[]> {
-  let query = supabase
+export interface PaginatedLeaderboard {
+  data: Profile[]
+  total: number
+  page: number
+  pageSize: number
+  hasMore: boolean
+}
+
+export async function getLeaderboard(
+  limit: number = 10,
+  timeframe: LeaderboardTimeframe = 'all',
+  page: number = 1
+): Promise<PaginatedLeaderboard> {
+  const offset = (page - 1) * limit
+
+  // Build the base query for filtering
+  let countQuery = supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+
+  let dataQuery = supabase
     .from('profiles')
     .select('*')
     .order('elo_rating', { ascending: false })
-    .limit(limit)
+    .range(offset, offset + limit - 1)
 
   // Filter by timeframe based on account creation or recent activity
-  // For 'month' and 'week', we filter profiles that have been updated recently
-  // (indicating recent battle activity)
   if (timeframe === 'month') {
     const monthAgo = new Date()
     monthAgo.setMonth(monthAgo.getMonth() - 1)
-    query = query.gte('updated_at', monthAgo.toISOString())
+    countQuery = countQuery.gte('updated_at', monthAgo.toISOString())
+    dataQuery = dataQuery.gte('updated_at', monthAgo.toISOString())
   } else if (timeframe === 'week') {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
-    query = query.gte('updated_at', weekAgo.toISOString())
+    countQuery = countQuery.gte('updated_at', weekAgo.toISOString())
+    dataQuery = dataQuery.gte('updated_at', weekAgo.toISOString())
   }
 
-  const { data, error } = await query
+  const [{ count }, { data, error }] = await Promise.all([
+    countQuery,
+    dataQuery
+  ])
 
   if (error) {
     console.error('Error fetching leaderboard:', error)
-    return []
+    return { data: [], total: 0, page, pageSize: limit, hasMore: false }
   }
-  return data || []
+
+  const total = count || 0
+  return {
+    data: data || [],
+    total,
+    page,
+    pageSize: limit,
+    hasMore: offset + limit < total
+  }
 }
 
 export async function getBeats(): Promise<Beat[]> {

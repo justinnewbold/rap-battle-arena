@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Trophy, Medal, Crown, TrendingUp, Swords, ArrowLeft } from 'lucide-react'
+import { Trophy, Medal, Crown, TrendingUp, Swords, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { getLeaderboard, Profile, LeaderboardTimeframe } from '@/lib/supabase'
+import { getLeaderboard, Profile, LeaderboardTimeframe, PaginatedLeaderboard } from '@/lib/supabase'
 import { getAvatarUrl, getEloRank, formatElo, cn } from '@/lib/utils'
+
+const PAGE_SIZE = 25
 
 export default function LeaderboardPage() {
   const router = useRouter()
@@ -14,17 +16,39 @@ export default function LeaderboardPage() {
   const [players, setPlayers] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [timeframe, setTimeframe] = useState<LeaderboardTimeframe>('all')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
 
   useEffect(() => {
-    loadLeaderboard()
+    setPage(1) // Reset to page 1 when timeframe changes
+    loadLeaderboard(1)
   }, [timeframe])
 
-  async function loadLeaderboard() {
+  async function loadLeaderboard(pageNum: number) {
     setLoading(true)
-    const data = await getLeaderboard(50, timeframe)
-    setPlayers(data)
+    const result = await getLeaderboard(PAGE_SIZE, timeframe, pageNum)
+    setPlayers(result.data)
+    setTotal(result.total)
+    setHasMore(result.hasMore)
+    setPage(pageNum)
     setLoading(false)
   }
+
+  function handleNextPage() {
+    if (hasMore) {
+      loadLeaderboard(page + 1)
+    }
+  }
+
+  function handlePrevPage() {
+    if (page > 1) {
+      loadLeaderboard(page - 1)
+    }
+  }
+
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const startRank = (page - 1) * PAGE_SIZE
 
   function getWinRate(wins: number, losses: number): number {
     const total = wins + losses
@@ -174,7 +198,7 @@ export default function LeaderboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-bold text-lg">Rankings</h2>
             <div className="text-sm text-dark-400">
-              {players.length} rappers
+              {total} rappers
             </div>
           </div>
 
@@ -183,69 +207,112 @@ export default function LeaderboardPage() {
               <div className="w-12 h-12 border-4 border-gold-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="space-y-2">
-              {players.map((player, index) => {
-                const rank = getEloRank(player.elo_rating)
-                const isCurrentUser = user?.id === player.id
+            <>
+              <div className="space-y-2">
+                {players.map((player, index) => {
+                  const globalRank = startRank + index
+                  const rank = getEloRank(player.elo_rating)
+                  const isCurrentUser = user?.id === player.id
 
-                return (
-                  <motion.div
-                    key={player.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.03 }}
-                    onClick={() => router.push(`/profile/${player.id}`)}
+                  return (
+                    <motion.div
+                      key={player.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      onClick={() => router.push(`/profile/${player.id}`)}
+                      className={cn(
+                        "flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02]",
+                        getRankStyle(globalRank),
+                        isCurrentUser && 'ring-2 ring-fire-500'
+                      )}
+                    >
+                      {/* Rank */}
+                      <div className="w-8 flex justify-center">
+                        {getRankIcon(globalRank)}
+                      </div>
+
+                      {/* Avatar */}
+                      <img
+                        src={getAvatarUrl(player.username, player.avatar_url)}
+                        alt={player.username}
+                        className="w-12 h-12 rounded-full border-2 border-dark-600"
+                      />
+
+                      {/* Info */}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold">{player.username}</span>
+                          {isCurrentUser && (
+                            <span className="text-xs bg-fire-500/20 text-fire-400 px-2 py-0.5 rounded-full">
+                              You
+                            </span>
+                          )}
+                          <span className={cn("text-sm", rank.color)}>
+                            {rank.icon} {rank.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-dark-400 mt-1">
+                          <span className="flex items-center gap-1">
+                            <Swords className="w-3 h-3" />
+                            {player.total_battles} battles
+                          </span>
+                          <span className="text-green-400">{player.wins}W</span>
+                          <span className="text-red-400">{player.losses}L</span>
+                          <span>{getWinRate(player.wins, player.losses)}% WR</span>
+                        </div>
+                      </div>
+
+                      {/* ELO */}
+                      <div className="text-right">
+                        <div className="text-xl font-bold">{formatElo(player.elo_rating)}</div>
+                        <div className="text-xs text-dark-400">ELO</div>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-dark-700">
+                  <button
+                    onClick={handlePrevPage}
+                    disabled={page === 1}
                     className={cn(
-                      "flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all hover:scale-[1.02]",
-                      getRankStyle(index),
-                      isCurrentUser && 'ring-2 ring-fire-500'
+                      "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
+                      page === 1
+                        ? "text-dark-500 cursor-not-allowed"
+                        : "text-dark-300 hover:bg-dark-700 hover:text-white"
                     )}
                   >
-                    {/* Rank */}
-                    <div className="w-8 flex justify-center">
-                      {getRankIcon(index)}
-                    </div>
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                  </button>
 
-                    {/* Avatar */}
-                    <img
-                      src={getAvatarUrl(player.username, player.avatar_url)}
-                      alt={player.username}
-                      className="w-12 h-12 rounded-full border-2 border-dark-600"
-                    />
+                  <div className="flex items-center gap-2">
+                    <span className="text-dark-400">Page</span>
+                    <span className="font-bold">{page}</span>
+                    <span className="text-dark-400">of</span>
+                    <span className="font-bold">{totalPages}</span>
+                  </div>
 
-                    {/* Info */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold">{player.username}</span>
-                        {isCurrentUser && (
-                          <span className="text-xs bg-fire-500/20 text-fire-400 px-2 py-0.5 rounded-full">
-                            You
-                          </span>
-                        )}
-                        <span className={cn("text-sm", rank.color)}>
-                          {rank.icon} {rank.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-dark-400 mt-1">
-                        <span className="flex items-center gap-1">
-                          <Swords className="w-3 h-3" />
-                          {player.total_battles} battles
-                        </span>
-                        <span className="text-green-400">{player.wins}W</span>
-                        <span className="text-red-400">{player.losses}L</span>
-                        <span>{getWinRate(player.wins, player.losses)}% WR</span>
-                      </div>
-                    </div>
-
-                    {/* ELO */}
-                    <div className="text-right">
-                      <div className="text-xl font-bold">{formatElo(player.elo_rating)}</div>
-                      <div className="text-xs text-dark-400">ELO</div>
-                    </div>
-                  </motion.div>
-                )
-              })}
-            </div>
+                  <button
+                    onClick={handleNextPage}
+                    disabled={!hasMore}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
+                      !hasMore
+                        ? "text-dark-500 cursor-not-allowed"
+                        : "text-dark-300 hover:bg-dark-700 hover:text-white"
+                    )}
+                  >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

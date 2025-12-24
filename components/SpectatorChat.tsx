@@ -82,22 +82,31 @@ export default function SpectatorChat({ battleId, userId, username, isDemo }: Sp
           filter: `battle_id=eq.${battleId}`
         },
         async (payload) => {
-          // Fetch the full message with user data
-          const { data } = await supabase
-            .from('battle_chat')
-            .select(`
-              *,
-              user:profiles(id, username, avatar_url)
-            `)
-            .eq('id', payload.new.id)
-            .single()
+          try {
+            // Fetch the full message with user data
+            const { data, error } = await supabase
+              .from('battle_chat')
+              .select(`
+                *,
+                user:profiles(id, username, avatar_url)
+              `)
+              .eq('id', payload.new.id)
+              .single()
 
-          if (data) {
-            setMessages(prev => [...prev, data])
-            // Use refs to get current values in callback
-            if (isMinimizedRef.current && data.user_id !== userIdRef.current) {
-              setUnreadCount(prev => prev + 1)
+            if (error) {
+              console.error('Error fetching chat message:', error)
+              return
             }
+
+            if (data) {
+              setMessages(prev => [...prev, data])
+              // Use refs to get current values in callback
+              if (isMinimizedRef.current && data.user_id !== userIdRef.current) {
+                setUnreadCount(prev => prev + 1)
+              }
+            }
+          } catch (err) {
+            console.error('Error in chat subscription callback:', err)
           }
         }
       )

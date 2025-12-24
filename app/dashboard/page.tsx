@@ -39,12 +39,12 @@ export default function DashboardPage() {
   }, [user, router, hasCompletedTutorial])
 
   async function loadData() {
-    const [leaders, battles, unread] = await Promise.all([
+    const [leadersResult, battles, unread] = await Promise.all([
       getLeaderboard(10),
       user ? getRecentBattles(user.id, 5) : [],
       user && !isDemo ? getUnreadNotificationCount(user.id) : 3 // Demo shows 3 unread
     ])
-    setLeaderboard(leaders)
+    setLeaderboard(leadersResult.data)
     setRecentBattles(battles)
     setUnreadCount(unread)
   }
