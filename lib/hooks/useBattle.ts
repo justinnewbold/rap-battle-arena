@@ -190,16 +190,32 @@ export function useBattle({ battleId, isSpectatorParam = false, onError }: UseBa
     }
   }, [phase, timer])
 
-  // Poll spectator count
+  // Poll spectator count with proper cleanup
   useEffect(() => {
     if (battleId.startsWith('demo-')) return
 
-    const interval = setInterval(async () => {
-      const count = await getSpectatorCount(battleId)
-      setSpectatorCount(count)
-    }, 5000)
+    let isMounted = true
 
-    return () => clearInterval(interval)
+    const fetchSpectatorCount = async () => {
+      try {
+        const count = await getSpectatorCount(battleId)
+        if (isMounted) {
+          setSpectatorCount(count)
+        }
+      } catch (error) {
+        console.error('Failed to fetch spectator count:', error)
+      }
+    }
+
+    // Fetch immediately on mount
+    fetchSpectatorCount()
+
+    const interval = setInterval(fetchSpectatorCount, 5000)
+
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
   }, [battleId])
 
   function setupDemoBattle() {

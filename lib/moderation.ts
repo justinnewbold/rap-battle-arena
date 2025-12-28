@@ -73,9 +73,38 @@ export async function moderateText(text: string): Promise<ModerationResult> {
       input: text,
     })
 
-    const result = response.results[0]
-    const categories = result.categories as unknown as ModerationResult['categories']
-    const categoryScores = result.category_scores as unknown as ModerationResult['categoryScores']
+    const result = response.results?.[0]
+
+    if (!result) {
+      console.warn('Moderation API returned no results')
+      return {
+        flagged: false,
+        categories: {} as ModerationResult['categories'],
+        categoryScores: {} as ModerationResult['categoryScores'],
+        action: 'allow',
+      }
+    }
+
+    // Safely extract categories with validation
+    const rawCategories = result.categories || {}
+    const rawScores = result.category_scores || {}
+
+    // Build validated categories object
+    const categoryKeys: (keyof ModerationResult['categories'])[] = [
+      'hate', 'hate/threatening', 'harassment', 'harassment/threatening',
+      'self-harm', 'self-harm/intent', 'self-harm/instructions',
+      'sexual', 'sexual/minors', 'violence', 'violence/graphic'
+    ]
+
+    const categories = {} as ModerationResult['categories']
+    const categoryScores = {} as ModerationResult['categoryScores']
+
+    for (const key of categoryKeys) {
+      // Use bracket notation to handle keys with special characters
+      // Cast through unknown first for type safety
+      categories[key] = Boolean((rawCategories as unknown as Record<string, unknown>)[key])
+      categoryScores[key] = Number((rawScores as unknown as Record<string, unknown>)[key]) || 0
+    }
 
     // Determine action based on thresholds
     let action: 'allow' | 'warn' | 'block' = 'allow'

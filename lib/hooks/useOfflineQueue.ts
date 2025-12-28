@@ -164,12 +164,17 @@ export function useVoteQueue() {
     storageKey: 'offline-votes',
     maxRetries: 5,
     onSync: async (action) => {
-      const response = await fetch('/api/vote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(action.payload),
-      })
-      return response.ok
+      try {
+        const response = await fetch('/api/vote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(action.payload),
+        })
+        return response.ok
+      } catch (error) {
+        console.error('Vote sync failed:', error)
+        return false
+      }
     },
   })
 }
@@ -182,12 +187,17 @@ export function useChatQueue() {
     storageKey: 'offline-chat',
     maxRetries: 3,
     onSync: async (action) => {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(action.payload),
-      })
-      return response.ok
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(action.payload),
+        })
+        return response.ok
+      } catch (error) {
+        console.error('Chat sync failed:', error)
+        return false
+      }
     },
   })
 }

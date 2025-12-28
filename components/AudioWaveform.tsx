@@ -165,13 +165,32 @@ export function StaticWaveform({
   const [waveformData, setWaveformData] = useState<number[]>([])
 
   useEffect(() => {
+    let isMounted = true
+    const audioContextRef: { current: AudioContext | null } = { current: null }
+
     async function generateWaveform() {
       try {
         const response = await fetch(audioUrl)
+
+        // Check if response is successful
+        if (!response.ok) {
+          throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`)
+        }
+
         const arrayBuffer = await response.arrayBuffer()
 
+        // Check if component is still mounted before proceeding
+        if (!isMounted) return
+
         const audioContext = new AudioContext()
+        audioContextRef.current = audioContext
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
+
+        // Check again after async operation
+        if (!isMounted) {
+          audioContext.close()
+          return
+        }
 
         const rawData = audioBuffer.getChannelData(0)
         const samples = 64
@@ -190,7 +209,9 @@ export function StaticWaveform({
         const max = Math.max(...filteredData)
         const normalized = filteredData.map(v => v / max)
 
-        setWaveformData(normalized)
+        if (isMounted) {
+          setWaveformData(normalized)
+        }
       } catch (error) {
         console.error('Failed to generate waveform:', error)
       }
@@ -198,6 +219,14 @@ export function StaticWaveform({
 
     if (audioUrl) {
       generateWaveform()
+    }
+
+    return () => {
+      isMounted = false
+      // Clean up audio context if it was created
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {})
+      }
     }
   }, [audioUrl])
 
