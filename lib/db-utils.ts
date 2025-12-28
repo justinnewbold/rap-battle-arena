@@ -127,8 +127,9 @@ export function createCursorPaginatedResult<T extends { id: string }>(
   limit: number,
   hasMore: boolean
 ): PaginatedResult<T> {
-  const lastItem = data[data.length - 1]
-  const firstItem = data[0]
+  // Safely access array elements with bounds checking
+  const lastItem = data.length > 0 ? data[data.length - 1] : undefined
+  const firstItem = data.length > 0 ? data[0] : undefined
 
   return {
     data,
@@ -167,32 +168,83 @@ export interface QueryOptions {
 }
 
 /**
+ * Escape a value for safe SQL insertion
+ * Prevents SQL injection by escaping special characters
+ */
+function escapeValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return 'NULL'
+  }
+  if (typeof value === 'number') {
+    return String(value)
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'TRUE' : 'FALSE'
+  }
+  // Escape single quotes by doubling them
+  const str = String(value)
+  return `'${str.replace(/'/g, "''")}'`
+}
+
+/**
+ * Validate column/table name to prevent injection
+ * Only allows alphanumeric characters and underscores
+ */
+function isValidIdentifier(name: string): boolean {
+  return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)
+}
+
+/**
  * Build optimized select query
  * Only selects needed columns to reduce data transfer
+ * Note: Uses parameterized-style escaping to prevent SQL injection
  */
 export function buildSelectQuery(
   table: string,
   options: QueryOptions = {}
 ): string {
-  const columns = options.select?.join(', ') || '*'
+  // Validate table name
+  if (!isValidIdentifier(table)) {
+    throw new Error(`Invalid table name: ${table}`)
+  }
+
+  // Validate and build column list
+  const columns = options.select?.map(col => {
+    if (!isValidIdentifier(col)) {
+      throw new Error(`Invalid column name: ${col}`)
+    }
+    return col
+  }).join(', ') || '*'
+
   let query = `SELECT ${columns} FROM ${table}`
 
-  // Add filters
+  // Add filters with proper escaping
   if (options.filters && Object.keys(options.filters).length > 0) {
     const conditions = Object.entries(options.filters)
       .map(([key, value]) => {
+        if (!isValidIdentifier(key)) {
+          throw new Error(`Invalid column name: ${key}`)
+        }
         if (value === null) return `${key} IS NULL`
-        if (Array.isArray(value)) return `${key} IN (${value.map(v => `'${v}'`).join(', ')})`
-        return `${key} = '${value}'`
+        if (Array.isArray(value)) {
+          const escapedValues = value.map(v => escapeValue(v)).join(', ')
+          return `${key} IN (${escapedValues})`
+        }
+        return `${key} = ${escapeValue(value)}`
       })
       .join(' AND ')
     query += ` WHERE ${conditions}`
   }
 
-  // Add ordering
+  // Add ordering with validation
   if (options.orderBy && options.orderBy.length > 0) {
     const orderClauses = options.orderBy
-      .map(o => `${o.column} ${o.ascending ? 'ASC' : 'DESC'}`)
+      .map(o => {
+        if (!isValidIdentifier(o.column)) {
+          throw new Error(`Invalid column name: ${o.column}`)
+        }
+        return `${o.column} ${o.ascending ? 'ASC' : 'DESC'}`
+      })
       .join(', ')
     query += ` ORDER BY ${orderClauses}`
   }

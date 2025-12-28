@@ -120,11 +120,14 @@ export function useTrainingMode(): UseTrainingModeReturn {
     if (sessionRef.current) {
       sessionRef.current.completedAt = new Date().toISOString()
       // Save to localStorage for history
-      const history = JSON.parse(
-        localStorage.getItem('training_history') || '[]'
-      )
-      history.push(sessionRef.current)
-      localStorage.setItem('training_history', JSON.stringify(history))
+      try {
+        const stored = localStorage.getItem('training_history')
+        const history: TrainingSession[] = stored ? JSON.parse(stored) : []
+        history.push(sessionRef.current)
+        localStorage.setItem('training_history', JSON.stringify(history))
+      } catch (error) {
+        console.error('Failed to save training history:', error)
+      }
     }
 
     setSession(null)
@@ -245,7 +248,14 @@ export function useTrainingMode(): UseTrainingModeReturn {
 // Load training history
 export function getTrainingHistory(): TrainingSession[] {
   if (typeof window === 'undefined') return []
-  return JSON.parse(localStorage.getItem('training_history') || '[]')
+  try {
+    const stored = localStorage.getItem('training_history')
+    if (!stored) return []
+    return JSON.parse(stored) as TrainingSession[]
+  } catch (error) {
+    console.error('Failed to load training history:', error)
+    return []
+  }
 }
 
 // Get training stats

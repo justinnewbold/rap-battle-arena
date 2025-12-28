@@ -86,10 +86,22 @@ function CreateBattleContent() {
       return
     }
 
-    const [loadedBeats, loadedUserBeats] = await Promise.all([
+    // Use Promise.allSettled to handle individual failures gracefully
+    const [beatsResult, userBeatsResult] = await Promise.allSettled([
       getBeats(),
       user ? getUserBeats(user.id) : Promise.resolve([])
     ])
+
+    // Extract beats or fallback to demo on failure
+    const loadedBeats = beatsResult.status === 'fulfilled' ? beatsResult.value : []
+    const loadedUserBeats = userBeatsResult.status === 'fulfilled' ? userBeatsResult.value : []
+
+    if (beatsResult.status === 'rejected') {
+      console.error('Failed to load library beats:', beatsResult.reason)
+    }
+    if (userBeatsResult.status === 'rejected') {
+      console.error('Failed to load user beats:', userBeatsResult.reason)
+    }
 
     // Use loaded beats or fallback to demo
     setBeats(loadedBeats.length > 0 ? loadedBeats as DemoBeat[] : [...DEMO_LIBRARY_BEATS] as DemoBeat[])

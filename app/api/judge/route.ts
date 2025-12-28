@@ -95,16 +95,45 @@ Be fair but critical. Great battle rappers score 7-8. Legendary verses score 9+.
       max_tokens: 500,
     })
 
-    const result = JSON.parse(completion.choices[0].message.content || '{}')
+    // Safely extract and parse the response
+    const choice = completion.choices?.[0]
+    const content = choice?.message?.content
 
-    // Calculate weighted total
+    if (!content) {
+      return serverErrorResponse('AI returned empty response')
+    }
+
+    let result: Record<string, unknown>
+    try {
+      result = JSON.parse(content)
+    } catch {
+      console.error('Failed to parse AI response:', content)
+      return serverErrorResponse('AI returned invalid JSON response')
+    }
+
+    // Validate required fields exist and are numbers
+    const requiredFields = ['rhyme', 'flow', 'punchlines', 'delivery', 'creativity', 'rebuttal']
+    for (const field of requiredFields) {
+      if (typeof result[field] !== 'number') {
+        result[field] = 5 // Default score if missing or invalid
+      }
+    }
+
+    // Calculate weighted total (values are guaranteed to be numbers after validation)
+    const rhyme = Number(result.rhyme) || 5
+    const flow = Number(result.flow) || 5
+    const punchlines = Number(result.punchlines) || 5
+    const delivery = Number(result.delivery) || 5
+    const creativity = Number(result.creativity) || 5
+    const rebuttal = Number(result.rebuttal) || 5
+
     const total = (
-      (result.rhyme || 5) * 0.20 +
-      (result.flow || 5) * 0.25 +
-      (result.punchlines || 5) * 0.20 +
-      (result.delivery || 5) * 0.15 +
-      (result.creativity || 5) * 0.10 +
-      (result.rebuttal || 5) * 0.10
+      rhyme * 0.20 +
+      flow * 0.25 +
+      punchlines * 0.20 +
+      delivery * 0.15 +
+      creativity * 0.10 +
+      rebuttal * 0.10
     )
 
     return NextResponse.json({

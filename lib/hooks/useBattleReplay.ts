@@ -259,16 +259,28 @@ export function useBattleReplayPlayer(
 export async function saveReplay(replay: BattleReplay): Promise<void> {
   // In a real app, this would save to Supabase
   // For now, save to localStorage as demo
-  const replays = JSON.parse(localStorage.getItem('battle_replays') || '[]')
-  replays.push(replay)
-  localStorage.setItem('battle_replays', JSON.stringify(replays))
+  try {
+    const stored = localStorage.getItem('battle_replays')
+    const replays: BattleReplay[] = stored ? JSON.parse(stored) : []
+    replays.push(replay)
+    localStorage.setItem('battle_replays', JSON.stringify(replays))
+  } catch (error) {
+    console.error('Failed to save replay:', error)
+    throw new Error('Failed to save replay')
+  }
 }
 
 // Load replays from storage
 export async function loadReplays(): Promise<BattleReplay[]> {
   // In a real app, this would load from Supabase
-  const replays = JSON.parse(localStorage.getItem('battle_replays') || '[]')
-  return replays
+  try {
+    const stored = localStorage.getItem('battle_replays')
+    if (!stored) return []
+    return JSON.parse(stored) as BattleReplay[]
+  } catch (error) {
+    console.error('Failed to load replays:', error)
+    return []
+  }
 }
 
 // Load single replay
