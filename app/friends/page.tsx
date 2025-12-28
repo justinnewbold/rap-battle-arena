@@ -4,14 +4,13 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Users, UserPlus, UserMinus, Search, ArrowLeft, ChevronRight,
-  Swords, Check, X, Clock, MessageCircle
+  Users, UserPlus, UserMinus, Search, ArrowLeft,
+  Swords, Check, X, Clock
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
   Profile, Friendship,
-  getFriends, getPendingFriendRequests, acceptFriendRequest, removeFriend,
-  sendFriendRequest, getFriendshipStatus
+  getFriends, getPendingFriendRequests, acceptFriendRequest, removeFriend
 } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, cn } from '@/lib/utils'
 import { useSounds } from '@/lib/sounds'

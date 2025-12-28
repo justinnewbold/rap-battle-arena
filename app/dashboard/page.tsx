@@ -4,23 +4,21 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
-  Mic2, Trophy, Swords, User, LogOut, TrendingUp,
-  Target, Flame, Clock, ChevronRight, Users, Zap,
-  Play, UserPlus, Hash, Bell, Settings, Award, Dumbbell,
+  Mic2, Trophy, Swords, User, LogOut,
+  Clock, ChevronRight, Users, Zap,
+  UserPlus, Hash, Bell, Settings, Award, Dumbbell,
   Search, BarChart3
 } from 'lucide-react'
-import { useUserStore, useBattleStore, useTutorialStore, DEMO_USER } from '@/lib/store'
+import { useUserStore, useTutorialStore } from '@/lib/store'
 import { supabase, getLeaderboard, getRecentBattles, Profile, Battle, getUnreadNotificationCount } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, getWinRate, formatDate, generateRoomCode } from '@/lib/utils'
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, isDemo, setUser, logout } = useUserStore()
-  const { setCurrentBattle, resetBattle } = useBattleStore()
+  const { user, isDemo, logout } = useUserStore()
   const { hasCompletedTutorial } = useTutorialStore()
   const [leaderboard, setLeaderboard] = useState<Profile[]>([])
   const [recentBattles, setRecentBattles] = useState<Battle[]>([])
-  const [activeTab, setActiveTab] = useState<'home' | 'battle' | 'profile'>('home')
   const [joinCode, setJoinCode] = useState('')
   const [showJoinModal, setShowJoinModal] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Mic2, Trophy, Users, Zap, Play, LogIn, UserPlus, Gamepad2 } from 'lucide-react'
+import { Mic2, Trophy, Zap, Play, LogIn, UserPlus } from 'lucide-react'
 import { useUserStore, DEMO_USER } from '@/lib/store'
 import { supabase, getLeaderboard, Profile } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank } from '@/lib/utils'

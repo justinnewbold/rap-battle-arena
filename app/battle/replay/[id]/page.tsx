@@ -4,14 +4,13 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ArrowLeft, Play, Pause, Share2, Trophy, Swords, Copy, Check,
-  MessageSquare, Star, Mic, Clock, ChevronDown, ChevronUp,
-  Volume2, VolumeX, SkipBack, SkipForward, Users
+  ArrowLeft, Play, Pause, Share2, Trophy, Swords, Check,
+  MessageSquare, Star, Mic, ChevronDown, ChevronUp, Users
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
-  Battle, BattleRound, Vote, Profile,
-  getBattleWithDetails, getVoteCounts
+  Battle, BattleRound, Vote,
+  getBattleWithDetails
 } from '@/lib/supabase'
 import { getAvatarUrl, cn, formatDate } from '@/lib/utils'
 
@@ -154,7 +153,7 @@ export default function BattleReplayPage() {
   const params = useParams()
   const battleId = params.id as string
 
-  const { user, isDemo } = useUserStore()
+  const { isDemo } = useUserStore()
   const [battle, setBattle] = useState<Battle | null>(null)
   const [rounds, setRounds] = useState<BattleRound[]>([])
   const [votes, setVotes] = useState<Vote[]>([])
@@ -273,7 +272,6 @@ export default function BattleReplayPage() {
   }
 
   const winner = battle.winner_id === battle.player1_id ? battle.player1 : battle.player2
-  const loser = battle.winner_id === battle.player1_id ? battle.player2 : battle.player1
 
   return (
     <div className="min-h-screen bg-dark-950">

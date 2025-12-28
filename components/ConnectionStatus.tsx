@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wifi, WifiOff, RefreshCw, AlertCircle } from 'lucide-react'
-import { ConnectionQuality, ConnectionStatus as ConnectionStatusType } from '@/lib/hooks/useConnectionResilience'
+import { ConnectionQuality } from '@/lib/hooks/useConnectionResilience'
 import { cn } from '@/lib/utils'
 
 interface ConnectionStatusProps {

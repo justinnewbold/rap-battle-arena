@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Music, ArrowLeft, Upload, Play, Pause, Trash2, Plus,
+  Music, ArrowLeft, Upload, Play, Pause, Trash2,
   Globe, Lock, X, Check, Loader2, Clock, Image as ImageIcon, Volume2
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
@@ -13,7 +13,7 @@ import {
   uploadBeat, deleteBeat, uploadBeatFile, uploadBeatCover
 } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
-import { DEMO_LIBRARY_BEATS, DEMO_USER_BEATS, BeatStyle } from '@/lib/constants'
+import { DEMO_LIBRARY_BEATS, BeatStyle } from '@/lib/constants'
 import { getBeatGenerator } from '@/lib/beat-generator'
 
 type TabType = 'my-beats' | 'public' | 'library'

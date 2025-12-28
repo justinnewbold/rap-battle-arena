@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Mic, Swords, Trophy, Users, Star, ArrowRight, ArrowLeft,
-  ChevronRight, Music, Award, MessageCircle, Play, Volume2
+  ChevronRight, Award, Play, Volume2
 } from 'lucide-react'
-import { useUserStore, useTutorialStore } from '@/lib/store'
+import { useTutorialStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { useSounds } from '@/lib/sounds'
 
@@ -177,7 +177,6 @@ function getColorClasses(color: string) {
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const { user } = useUserStore()
   const { completeTutorial, setHasCompletedTutorial } = useTutorialStore()
   const sounds = useSounds()
 

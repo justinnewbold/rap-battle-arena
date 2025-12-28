@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, TrendingUp, TrendingDown, BarChart3, Target,
-  Flame, Zap, Music, Mic, Trophy, Calendar, Activity, Users, Swords
+  Flame, Zap, Music, Mic, Trophy, Calendar, Activity, Swords
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -125,7 +125,7 @@ function getColorClasses(color: string) {
 
 export default function StatsPage() {
   const router = useRouter()
-  const { user, isDemo } = useUserStore()
+  const { user } = useUserStore()
   const [stats, setStats] = useState<BattleStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<'all' | 'month' | 'week'>('all')
@@ -355,7 +355,7 @@ export default function StatsPage() {
             Monthly Activity
           </h3>
           <div className="flex items-end gap-3 h-40">
-            {stats.monthlyStats.map((month, index) => {
+            {stats.monthlyStats.map((month) => {
               const total = month.wins + month.losses
               const height = (total / maxMonthlyBattles) * 100
               const winHeight = total > 0 ? (month.wins / total) * 100 : 0

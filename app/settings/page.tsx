@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
-  Settings, ArrowLeft, Volume2, VolumeX, Bell, BellOff,
-  Eye, EyeOff, Shield, User, LogOut, Trash2, Save
+  Settings, ArrowLeft, Volume2, Bell,
+  Shield, User, LogOut, Trash2, Save
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import { supabase, getUserSettings, updateUserSettings, UserSettings } from '@/lib/supabase'
@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const { user, isDemo, logout } = useUserStore()
   const sounds = useSounds()
 
-  const [settings, setSettings] = useState<UserSettings | null>(null)
+  const [_settings, setSettings] = useState<UserSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell, ArrowLeft, Check, Trash2, UserPlus, Swords,
-  Trophy, Award, MessageCircle, ChevronRight, Filter, X
+  Trophy, Award, ChevronRight
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
@@ -143,7 +143,6 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterType>('all')
-  const [showFilterMenu, setShowFilterMenu] = useState(false)
 
   useEffect(() => {
     if (!user) {

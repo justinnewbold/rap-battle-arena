@@ -66,20 +66,6 @@ export default function TestAudioPage() {
     setCurrentBeat(null)
   }
 
-  function togglePlayPause() {
-    if (!currentBeat) return
-    const generator = getBeatGenerator()
-
-    if (audioStatus === 'playing') {
-      generator.stop()
-      setAudioStatus('paused')
-    } else {
-      generator.start(currentBeat)
-      generator.setVolume(isMuted ? 0 : volume)
-      setAudioStatus('playing')
-    }
-  }
-
   async function startMicTest() {
     setMicStatus('requesting')
     try {

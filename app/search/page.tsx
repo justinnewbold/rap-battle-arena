@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, Search, Users, User, Trophy, ChevronRight,
-  Swords, Crown, X
+  Swords, X
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import { Profile, Crew, searchCrews, searchUsers } from '@/lib/supabase'
@@ -35,7 +35,7 @@ type SearchTab = 'all' | 'users' | 'crews'
 function SearchContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, isDemo } = useUserStore()
+  const { isDemo } = useUserStore()
   const sounds = useSounds()
 
   const initialQuery = searchParams.get('q') || ''

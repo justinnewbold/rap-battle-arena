@@ -230,23 +230,6 @@ function CreateBattleContent() {
     router.push(`/battle/demo-${Date.now()}`)
   }
 
-  async function handleCancel() {
-    getBeatGenerator().stop()
-    // Clean up channel subscription
-    if (battleChannelRef.current) {
-      supabase.removeChannel(battleChannelRef.current)
-      battleChannelRef.current = null
-    }
-    if (battle) {
-      try {
-        await supabase.from('battles').delete().eq('id', battle.id)
-      } catch (err) {
-        console.error('Error deleting battle:', err)
-      }
-    }
-    router.push('/dashboard')
-  }
-
   async function handleBack() {
     if (step === 'waiting') {
       // Clean up channel subscription
