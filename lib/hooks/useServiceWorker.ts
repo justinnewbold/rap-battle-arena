@@ -28,6 +28,8 @@ export function useServiceWorker() {
 
     if (!isSupported) return
 
+    let updateInterval: ReturnType<typeof setInterval> | null = null
+
     // Register service worker
     navigator.serviceWorker
       .register('/sw.js')
@@ -39,7 +41,7 @@ export function useServiceWorker() {
         }))
 
         // Check for updates periodically
-        setInterval(() => {
+        updateInterval = setInterval(() => {
           registration.update()
         }, 60000) // Check every minute
       })
@@ -58,6 +60,9 @@ export function useServiceWorker() {
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
+      if (updateInterval) {
+        clearInterval(updateInterval)
+      }
     }
   }, [])
 
