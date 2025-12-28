@@ -12,6 +12,7 @@
     "@livekit/components-react": "^2.9.16",
     "@supabase/ssr": "^0.4.0",
     "@supabase/supabase-js": "^2.45.0",
+    "@upstash/redis": "^1.36.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.8",
     "livekit-client": "^2.16.0",

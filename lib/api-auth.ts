@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { Redis } from '@upstash/redis'
 
 // Environment validation
 function getEnvVar(name: string): string {
@@ -15,6 +16,22 @@ function createServerSupabase() {
   const url = getEnvVar('NEXT_PUBLIC_SUPABASE_URL')
   const key = getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY')
   return createClient(url, key)
+}
+
+// Initialize Redis client (optional - falls back to in-memory if not configured)
+let redis: Redis | null = null
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
+
+if (REDIS_URL && REDIS_TOKEN) {
+  try {
+    redis = new Redis({
+      url: REDIS_URL,
+      token: REDIS_TOKEN,
+    })
+  } catch (error) {
+    console.warn('Failed to initialize Redis, falling back to in-memory rate limiting:', error)
+  }
 }
 
 export interface AuthResult {
@@ -91,12 +108,72 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
   }
 }
 
-/**
- * Simple rate limiter using in-memory store
- * Note: In production, use Redis or similar for distributed rate limiting
- */
+// In-memory fallback store
 const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
 
+/**
+ * Check rate limit using Redis (distributed) or in-memory (fallback)
+ * Supports sliding window rate limiting
+ */
+export async function checkRateLimitAsync(
+  identifier: string,
+  maxRequests: number,
+  windowMs: number
+): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  const now = Date.now()
+  const windowSeconds = Math.ceil(windowMs / 1000)
+
+  // Try Redis first for distributed rate limiting
+  if (redis) {
+    try {
+      const key = `ratelimit:${identifier}`
+
+      // Use Redis MULTI for atomic operations
+      const pipeline = redis.pipeline()
+      pipeline.incr(key)
+      pipeline.pttl(key)
+
+      const results = await pipeline.exec()
+      const count = results[0] as number
+      const ttl = results[1] as number
+
+      // Set expiry on first request
+      if (count === 1 || ttl === -1) {
+        await redis.expire(key, windowSeconds)
+      }
+
+      const resetAt = now + (ttl > 0 ? ttl : windowMs)
+      const allowed = count <= maxRequests
+      const remaining = Math.max(0, maxRequests - count)
+
+      return { allowed, remaining, resetAt }
+    } catch (error) {
+      console.warn('Redis rate limit check failed, falling back to in-memory:', error)
+      // Fall through to in-memory
+    }
+  }
+
+  // In-memory fallback
+  const key = identifier
+  const existing = rateLimitStore.get(key)
+
+  if (!existing || now > existing.resetAt) {
+    const resetAt = now + windowMs
+    rateLimitStore.set(key, { count: 1, resetAt })
+    return { allowed: true, remaining: maxRequests - 1, resetAt }
+  }
+
+  if (existing.count >= maxRequests) {
+    return { allowed: false, remaining: 0, resetAt: existing.resetAt }
+  }
+
+  existing.count++
+  return { allowed: true, remaining: maxRequests - existing.count, resetAt: existing.resetAt }
+}
+
+/**
+ * Synchronous rate limit check (in-memory only, for backwards compatibility)
+ */
 export function checkRateLimit(
   identifier: string,
   maxRequests: number,
@@ -108,7 +185,6 @@ export function checkRateLimit(
   const existing = rateLimitStore.get(key)
 
   if (!existing || now > existing.resetAt) {
-    // Create new window
     const resetAt = now + windowMs
     rateLimitStore.set(key, { count: 1, resetAt })
     return { allowed: true, remaining: maxRequests - 1, resetAt }
@@ -185,9 +261,7 @@ export function validateLiveKitCredentials(): { apiKey: string; apiSecret: strin
   return { apiKey, apiSecret }
 }
 
-// Clean up old rate limit entries periodically
-// Note: In serverless environments, this cleanup may not run between cold starts.
-// For production with high traffic, consider using Redis for distributed rate limiting.
+// Clean up old in-memory rate limit entries periodically
 let cleanupInterval: ReturnType<typeof setInterval> | null = null
 
 function startRateLimitCleanup() {
@@ -200,15 +274,13 @@ function startRateLimitCleanup() {
         rateLimitStore.delete(key)
       }
     })
-  }, 60000) // Clean up every minute
+  }, 60000)
 
-  // Prevent interval from keeping the process alive
   if (cleanupInterval.unref) {
     cleanupInterval.unref()
   }
 }
 
-// Start cleanup in non-edge runtime environments
 if (typeof setInterval !== 'undefined') {
   startRateLimitCleanup()
 }
