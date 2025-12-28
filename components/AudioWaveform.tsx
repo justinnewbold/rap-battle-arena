@@ -25,7 +25,7 @@ export function AudioWaveform({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
+  const dataArrayRef = useRef<Uint8Array | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
   const [isActive, setIsActive] = useState(false)
@@ -91,7 +91,8 @@ export function AudioWaveform({
 
     animationRef.current = requestAnimationFrame(draw)
 
-    analyser.getByteFrequencyData(dataArray)
+    // Use type assertion for TypeScript 5.5+ compatibility
+    analyser.getByteFrequencyData(dataArray as Uint8Array<ArrayBuffer>)
 
     const width = canvas.width
     const height = canvas.height

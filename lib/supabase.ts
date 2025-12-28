@@ -1,9 +1,20 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder')
+// Warn in development if environment variables are missing
+if (typeof window !== 'undefined' && (!supabaseUrl || !supabaseAnonKey)) {
+  console.warn(
+    'Supabase environment variables are not configured. ' +
+    'Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
+  )
+}
+
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder'
+)
 
 // Types
 export interface Profile {
@@ -1460,13 +1471,20 @@ export async function createCrewBattle(
 }
 
 export async function searchCrews(query: string): Promise<Crew[]> {
+  if (!query || query.length < 2) return []
+
+  // Sanitize query to prevent injection - escape special PostgREST characters
+  const sanitizedQuery = query.replace(/[%_\\'"(),]/g, '')
+
+  if (!sanitizedQuery) return []
+
   const { data, error } = await supabase
     .from('crews')
     .select(`
       *,
       leader:profiles!crews_leader_id_fkey(id, username, avatar_url)
     `)
-    .or(`name.ilike.%${query}%,tag.ilike.%${query}%`)
+    .or(`name.ilike.%${sanitizedQuery}%,tag.ilike.%${sanitizedQuery}%`)
     .limit(20)
 
   if (error) {
@@ -1479,10 +1497,15 @@ export async function searchCrews(query: string): Promise<Crew[]> {
 export async function searchUsers(query: string): Promise<Profile[]> {
   if (!query || query.length < 2) return []
 
+  // Sanitize query to prevent injection
+  const sanitizedQuery = query.replace(/[%_\\'"(),]/g, '')
+
+  if (!sanitizedQuery) return []
+
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .ilike('username', `%${query}%`)
+    .ilike('username', `%${sanitizedQuery}%`)
     .order('elo_rating', { ascending: false })
     .limit(20)
 
