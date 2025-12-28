@@ -42,8 +42,14 @@ export async function POST(request: NextRequest) {
       return rateLimitedResponse(rateLimit.resetAt)
     }
 
-    // Validate input
-    const body = await request.json()
+    // Validate input - handle JSON parse errors
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return badRequestResponse('Invalid JSON in request body')
+    }
+
     const validation = reportSchema.safeParse(body)
 
     if (!validation.success) {
@@ -66,8 +72,8 @@ export async function POST(request: NextRequest) {
       })
 
     if (error) {
-      // Table might not exist - log and return success anyway
       console.error('Failed to save report:', error)
+      return serverErrorResponse('Failed to save report. Please try again later.')
     }
 
     return NextResponse.json({

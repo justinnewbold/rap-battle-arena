@@ -98,11 +98,12 @@ export function useSupabaseChannel({
         if (status === 'SUBSCRIBED') {
           setIsConnected(true)
           setIsReconnecting(false)
-          reconnectAttemptsRef.current = 0
 
+          // Check if this was a reconnection before resetting counter
           if (reconnectAttemptsRef.current > 0) {
             onReconnect?.()
           }
+          reconnectAttemptsRef.current = 0
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           setIsConnected(false)
           console.error(`Channel ${channelName} error:`, status, err)

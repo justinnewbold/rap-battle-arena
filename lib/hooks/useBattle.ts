@@ -283,13 +283,15 @@ export function useBattle({ battleId, isSpectatorParam = false, onError }: UseBa
       setTotalRounds(loadedBattle.total_rounds)
 
       if (loadedBattle.beat_id) {
-        const { data: beat } = await supabase
+        const { data: beat, error: beatError } = await supabase
           .from('beats')
           .select('*')
           .eq('id', loadedBattle.beat_id)
           .single()
 
-        if (beat) {
+        if (beatError) {
+          console.error('Error loading beat:', beatError)
+        } else if (beat) {
           setSelectedBeat(beat as DemoBeat)
         }
       }
