@@ -190,11 +190,15 @@ export default function TournamentDetailPage() {
     }
   }
 
-  function handleShare() {
+  async function handleShare() {
     const url = `${window.location.origin}/tournaments/${tournamentId}`
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy tournament URL:', error)
+    }
   }
 
   function getRoundName(round: number, totalRounds: number) {

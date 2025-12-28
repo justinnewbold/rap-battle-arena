@@ -31,7 +31,14 @@ export async function POST(request: NextRequest) {
       return rateLimitedResponse(rateLimit.resetAt)
     }
 
-    const body = await request.json()
+    // Handle JSON parse errors
+    let body: Record<string, unknown>
+    try {
+      body = await request.json()
+    } catch {
+      return badRequestResponse('Invalid JSON in request body')
+    }
+
     const { text, type = 'general' } = body
 
     if (!text || typeof text !== 'string') {
