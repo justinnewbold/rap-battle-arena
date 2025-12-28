@@ -10,16 +10,27 @@ interface CacheEntry<T> {
 }
 
 const cache = new Map<string, CacheEntry<unknown>>()
+let cleanupInterval: ReturnType<typeof setInterval> | null = null
 
-// Clean expired entries periodically
-setInterval(() => {
-  const now = Date.now()
-  cache.forEach((entry, key) => {
-    if (entry.expiresAt < now) {
-      cache.delete(key)
+// Start cleanup interval lazily when first cache entry is added
+function ensureCleanupRunning() {
+  if (cleanupInterval) return
+
+  cleanupInterval = setInterval(() => {
+    const now = Date.now()
+    cache.forEach((entry, key) => {
+      if (entry.expiresAt < now) {
+        cache.delete(key)
+      }
+    })
+
+    // Stop interval when cache is empty to prevent memory leaks
+    if (cache.size === 0 && cleanupInterval) {
+      clearInterval(cleanupInterval)
+      cleanupInterval = null
     }
-  })
-}, 30000) // Clean every 30 seconds
+  }, 30000) // Clean every 30 seconds
+}
 
 /**
  * Cache wrapper for database queries
@@ -36,6 +47,9 @@ export async function withCache<T>(
   }
 
   const data = await fetcher()
+
+  // Ensure cleanup is running when adding entries
+  ensureCleanupRunning()
 
   cache.set(key, {
     data,

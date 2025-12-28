@@ -125,23 +125,34 @@ export function usePerformanceMonitor(options?: {
       onReport?.(report)
     }
 
+    // Track timeout for cleanup
+    let loadTimeout: ReturnType<typeof setTimeout> | null = null
+
     // Report after load event
-    window.addEventListener('load', () => {
+    const handleLoad = () => {
       // Wait a bit for LCP to finalize
-      setTimeout(reportMetrics, 3000)
-    })
+      loadTimeout = setTimeout(reportMetrics, 3000)
+    }
 
     // Also report on visibility change (tab close/switch)
-    document.addEventListener('visibilitychange', () => {
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         reportMetrics()
       }
-    })
+    }
+
+    window.addEventListener('load', handleLoad)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       lcpObserver.disconnect()
       clsObserver.disconnect()
       fidObserver.disconnect()
+      window.removeEventListener('load', handleLoad)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (loadTimeout) {
+        clearTimeout(loadTimeout)
+      }
     }
   }, [collectMetrics, onReport, reportToConsole])
 }

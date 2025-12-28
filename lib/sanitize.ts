@@ -158,23 +158,31 @@ export function isValidRoomCode(code: string): boolean {
 }
 
 // Rate limiting for messages (client-side)
-const messageTimestamps: number[] = []
+// Using a fixed-size circular buffer to prevent unbounded growth
 const MESSAGE_LIMIT = 5
 const MESSAGE_WINDOW = 10000 // 10 seconds
+const messageTimestamps: number[] = new Array(MESSAGE_LIMIT).fill(0)
+let messageIndex = 0
 
 export function canSendMessage(): boolean {
   const now = Date.now()
+  const oldestAllowedTime = now - MESSAGE_WINDOW
 
-  // Remove old timestamps
-  while (messageTimestamps.length > 0 && messageTimestamps[0] < now - MESSAGE_WINDOW) {
-    messageTimestamps.shift()
+  // Count how many messages are within the time window
+  let recentCount = 0
+  for (let i = 0; i < MESSAGE_LIMIT; i++) {
+    if (messageTimestamps[i] > oldestAllowedTime) {
+      recentCount++
+    }
   }
 
-  if (messageTimestamps.length >= MESSAGE_LIMIT) {
+  if (recentCount >= MESSAGE_LIMIT) {
     return false
   }
 
-  messageTimestamps.push(now)
+  // Add new timestamp in circular fashion
+  messageTimestamps[messageIndex] = now
+  messageIndex = (messageIndex + 1) % MESSAGE_LIMIT
   return true
 }
 
