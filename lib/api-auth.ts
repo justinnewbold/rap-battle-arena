@@ -186,11 +186,29 @@ export function validateLiveKitCredentials(): { apiKey: string; apiSecret: strin
 }
 
 // Clean up old rate limit entries periodically
-setInterval(() => {
-  const now = Date.now()
-  Array.from(rateLimitStore.entries()).forEach(([key, value]) => {
-    if (now > value.resetAt) {
-      rateLimitStore.delete(key)
-    }
-  })
-}, 60000) // Clean up every minute
+// Note: In serverless environments, this cleanup may not run between cold starts.
+// For production with high traffic, consider using Redis for distributed rate limiting.
+let cleanupInterval: ReturnType<typeof setInterval> | null = null
+
+function startRateLimitCleanup() {
+  if (cleanupInterval) return
+
+  cleanupInterval = setInterval(() => {
+    const now = Date.now()
+    rateLimitStore.forEach((value, key) => {
+      if (now > value.resetAt) {
+        rateLimitStore.delete(key)
+      }
+    })
+  }, 60000) // Clean up every minute
+
+  // Prevent interval from keeping the process alive
+  if (cleanupInterval.unref) {
+    cleanupInterval.unref()
+  }
+}
+
+// Start cleanup in non-edge runtime environments
+if (typeof setInterval !== 'undefined') {
+  startRateLimitCleanup()
+}

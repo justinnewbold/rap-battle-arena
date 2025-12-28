@@ -282,17 +282,17 @@ export function useLiveKit(token?: string) {
       setParticipants(manager.getParticipants())
     }
     return success
-  }, [manager])
+  }, []) // manager is a singleton, doesn't need to be in deps
 
   const disconnect = useCallback(async () => {
     await manager.disconnect()
-  }, [manager])
+  }, [])
 
   const toggleMic = useCallback(async () => {
     const newState = await manager.toggleMicrophone()
     setIsMicEnabled(manager.isMicrophoneEnabled())
     return newState
-  }, [manager])
+  }, [])
 
   const enableMic = useCallback(async () => {
     const success = await manager.enableMicrophone()
@@ -300,7 +300,7 @@ export function useLiveKit(token?: string) {
       setIsMicEnabled(true)
     }
     return success
-  }, [manager])
+  }, [])
 
   const disableMic = useCallback(async () => {
     const success = await manager.disableMicrophone()
@@ -308,7 +308,7 @@ export function useLiveKit(token?: string) {
       setIsMicEnabled(false)
     }
     return success
-  }, [manager])
+  }, [])
 
   return {
     isConnected,
