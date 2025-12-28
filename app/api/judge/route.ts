@@ -4,11 +4,11 @@ import {
   authenticateRequest,
   checkRateLimit,
   rateLimitedResponse,
-  badRequestResponse,
   serverErrorResponse,
   validateOpenAIKey
 } from '@/lib/api-auth'
-import { API_RATE_LIMITS, INPUT_LIMITS } from '@/lib/constants'
+import { API_RATE_LIMITS } from '@/lib/constants'
+import { validateRequest, judgeRequestSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,24 +38,13 @@ export async function POST(request: NextRequest) {
 
     const openai = new OpenAI({ apiKey })
 
-    const { transcript, opponentTranscript, roundNumber } = await request.json()
-
-    // Input validation
-    if (!transcript || typeof transcript !== 'string') {
-      return badRequestResponse('No transcript provided')
+    // Validate input with Zod
+    const validation = await validateRequest(request, judgeRequestSchema)
+    if (validation.error) {
+      return validation.error
     }
 
-    if (transcript.length > INPUT_LIMITS.transcriptMaxLength) {
-      return badRequestResponse(`Transcript too long. Maximum ${INPUT_LIMITS.transcriptMaxLength} characters.`)
-    }
-
-    if (opponentTranscript && typeof opponentTranscript !== 'string') {
-      return badRequestResponse('Invalid opponent transcript')
-    }
-
-    if (opponentTranscript && opponentTranscript.length > INPUT_LIMITS.transcriptMaxLength) {
-      return badRequestResponse(`Opponent transcript too long. Maximum ${INPUT_LIMITS.transcriptMaxLength} characters.`)
-    }
+    const { transcript, opponentTranscript, roundNumber } = validation.data
 
     const prompt = `You are an expert hip-hop battle rap judge. Analyze the following rap verse and score it.
 

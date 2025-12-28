@@ -4,14 +4,11 @@ import {
   authenticateRequest,
   checkRateLimit,
   rateLimitedResponse,
-  badRequestResponse,
   serverErrorResponse,
   validateOpenAIKey
 } from '@/lib/api-auth'
 import { API_RATE_LIMITS } from '@/lib/constants'
-
-// Max file size: 25MB (OpenAI limit)
-const MAX_FILE_SIZE = 25 * 1024 * 1024
+import { validateFormData, transcribeRequestSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,23 +38,13 @@ export async function POST(request: NextRequest) {
 
     const openai = new OpenAI({ apiKey })
 
-    const formData = await request.formData()
-    const audioFile = formData.get('audio') as File
-
-    if (!audioFile) {
-      return badRequestResponse('No audio file provided')
+    // Validate input with Zod
+    const validation = await validateFormData(request, transcribeRequestSchema)
+    if (validation.error) {
+      return validation.error
     }
 
-    // Validate file type
-    const validTypes = ['audio/webm', 'audio/mp3', 'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/ogg']
-    if (!validTypes.some(type => audioFile.type.startsWith(type.split('/')[0]))) {
-      return badRequestResponse('Invalid audio file type. Supported: webm, mp3, wav, mp4, ogg')
-    }
-
-    // Validate file size
-    if (audioFile.size > MAX_FILE_SIZE) {
-      return badRequestResponse(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`)
-    }
+    const { audio: audioFile } = validation.data
 
     // Convert to format OpenAI accepts
     const transcription = await openai.audio.transcriptions.create({

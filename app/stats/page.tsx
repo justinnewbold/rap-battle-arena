@@ -5,10 +5,17 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, TrendingUp, TrendingDown, BarChart3, Target,
-  Flame, Zap, Music, Mic, Trophy, Calendar, Activity
+  Flame, Zap, Music, Mic, Trophy, Calendar, Activity, Users, Swords
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import {
+  EloHistoryChart,
+  WinRateTrendChart,
+  SkillRadarChart,
+  HeadToHeadChart,
+  ScoreDistributionChart,
+} from '@/components/analytics'
 
 interface StatCategory {
   name: string
@@ -33,6 +40,11 @@ interface BattleStats {
   recentForm: ('W' | 'L')[]
   categoryScores: StatCategory[]
   monthlyStats: { month: string; wins: number; losses: number }[]
+  eloHistory: { date: string; elo: number; change: number }[]
+  winRateTrend: { period: string; winRate: number; battles: number }[]
+  topOpponents: { opponent: string; wins: number; losses: number; avgScore: number }[]
+  scoreDistribution: { range: string; count: number }[]
+  radarData: { category: string; score: number; fullMark: number }[]
 }
 
 // Demo stats data
@@ -61,6 +73,43 @@ const DEMO_STATS: BattleStats = {
     { month: 'Sep', wins: 6, losses: 4 },
     { month: 'Oct', wins: 7, losses: 5 },
     { month: 'Nov', wins: 6, losses: 5 },
+  ],
+  eloHistory: [
+    { date: 'Jun', elo: 1000, change: 0 },
+    { date: 'Jul', elo: 1045, change: 45 },
+    { date: 'Aug', elo: 1082, change: 37 },
+    { date: 'Sep', elo: 1120, change: 38 },
+    { date: 'Oct', elo: 1156, change: 36 },
+    { date: 'Nov', elo: 1178, change: 22 },
+  ],
+  winRateTrend: [
+    { period: 'Week 1', winRate: 50, battles: 4 },
+    { period: 'Week 2', winRate: 60, battles: 5 },
+    { period: 'Week 3', winRate: 55, battles: 4 },
+    { period: 'Week 4', winRate: 67, battles: 6 },
+    { period: 'Week 5', winRate: 62, battles: 5 },
+    { period: 'Week 6', winRate: 71, battles: 7 },
+  ],
+  topOpponents: [
+    { opponent: 'MC_Thunder', wins: 3, losses: 1, avgScore: 7.8 },
+    { opponent: 'FlowMaster', wins: 2, losses: 2, avgScore: 7.2 },
+    { opponent: 'RhymeKing', wins: 2, losses: 1, avgScore: 7.5 },
+    { opponent: 'BeatDropper', wins: 1, losses: 2, avgScore: 6.9 },
+  ],
+  scoreDistribution: [
+    { range: '5-6', count: 8 },
+    { range: '6-7', count: 15 },
+    { range: '7-8', count: 28 },
+    { range: '8-9', count: 12 },
+    { range: '9-10', count: 3 },
+  ],
+  radarData: [
+    { category: 'Flow', score: 8.2, fullMark: 10 },
+    { category: 'Rhymes', score: 7.6, fullMark: 10 },
+    { category: 'Punchlines', score: 6.8, fullMark: 10 },
+    { category: 'Delivery', score: 7.4, fullMark: 10 },
+    { category: 'Creativity', score: 7.1, fullMark: 10 },
+    { category: 'Rebuttal', score: 6.5, fullMark: 10 },
   ],
 }
 
@@ -346,6 +395,91 @@ export default function StatsPage() {
               <span className="text-dark-400">Losses</span>
             </div>
           </div>
+        </motion.div>
+
+        {/* ELO History & Win Rate Trend */}
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="card"
+          >
+            <h3 className="font-bold mb-4 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-fire-400" />
+              ELO Rating History
+            </h3>
+            <div className="text-2xl font-bold text-fire-400 mb-2">
+              {stats.eloHistory[stats.eloHistory.length - 1]?.elo || 1000}
+              <span className="text-sm text-green-400 ml-2">
+                +{stats.eloHistory.reduce((sum, e) => sum + e.change, 0)}
+              </span>
+            </div>
+            <EloHistoryChart data={stats.eloHistory} />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+            className="card"
+          >
+            <h3 className="font-bold mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-green-400" />
+              Win Rate Trend
+            </h3>
+            <div className="text-2xl font-bold text-green-400 mb-2">
+              {stats.winRateTrend[stats.winRateTrend.length - 1]?.winRate.toFixed(1) || 0}%
+              <span className="text-sm text-dark-400 ml-2">this week</span>
+            </div>
+            <WinRateTrendChart data={stats.winRateTrend} />
+          </motion.div>
+        </div>
+
+        {/* Skill Radar & Head-to-Head */}
+        <div className="grid md:grid-cols-2 gap-6 mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="card"
+          >
+            <h3 className="font-bold mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5 text-purple-400" />
+              Skill Breakdown
+            </h3>
+            <SkillRadarChart data={stats.radarData} />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.55 }}
+            className="card"
+          >
+            <h3 className="font-bold mb-4 flex items-center gap-2">
+              <Swords className="w-5 h-5 text-ice-400" />
+              Top Matchups
+            </h3>
+            <HeadToHeadChart data={stats.topOpponents} />
+          </motion.div>
+        </div>
+
+        {/* Score Distribution */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="card mb-6"
+        >
+          <h3 className="font-bold mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-blue-400" />
+            Score Distribution
+          </h3>
+          <p className="text-sm text-dark-400 mb-4">
+            Your round scores across all battles
+          </p>
+          <ScoreDistributionChart data={stats.scoreDistribution} />
         </motion.div>
 
         {/* Additional Stats */}

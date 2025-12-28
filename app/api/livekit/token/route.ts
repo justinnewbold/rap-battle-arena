@@ -4,11 +4,11 @@ import {
   authenticateRequest,
   checkRateLimit,
   rateLimitedResponse,
-  badRequestResponse,
   serverErrorResponse,
   validateLiveKitCredentials
 } from '@/lib/api-auth'
 import { API_RATE_LIMITS } from '@/lib/constants'
+import { validateRequest, livekitTokenRequestSchema } from '@/lib/validations'
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,37 +36,25 @@ export async function POST(request: NextRequest) {
       return serverErrorResponse('LiveKit credentials not configured')
     }
 
-    const { roomName, participantName, participantId } = await request.json()
-
-    // Input validation
-    if (!roomName || typeof roomName !== 'string') {
-      return badRequestResponse('Missing or invalid roomName')
+    // Validate input with Zod
+    const validation = await validateRequest(request, livekitTokenRequestSchema)
+    if (validation.error) {
+      return validation.error
     }
 
-    if (!participantName || typeof participantName !== 'string') {
-      return badRequestResponse('Missing or invalid participantName')
-    }
+    const { roomName, participantName, participantId } = validation.data
 
-    // Sanitize room name (alphanumeric, hyphens, underscores only)
-    const sanitizedRoomName = roomName.replace(/[^a-zA-Z0-9-_]/g, '')
-    if (sanitizedRoomName.length === 0 || sanitizedRoomName.length > 128) {
-      return badRequestResponse('Invalid room name format')
-    }
-
-    // Sanitize participant name
-    const sanitizedParticipantName = participantName.slice(0, 64)
-
-    // Create access token
+    // Create access token (input already validated by Zod schema)
     const at = new AccessToken(credentials.apiKey, credentials.apiSecret, {
       identity: participantId || auth.userId, // Use authenticated user ID if not provided
-      name: sanitizedParticipantName,
+      name: participantName,
       // Token valid for 24 hours
       ttl: 60 * 60 * 24,
     })
 
     // Grant permissions
     at.addGrant({
-      room: sanitizedRoomName,
+      room: roomName,
       roomJoin: true,
       canPublish: true,
       canSubscribe: true,
