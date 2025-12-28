@@ -5,12 +5,12 @@ import { useRouter, useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, Users, Crown, Shield, Trophy, Swords,
-  UserPlus, Calendar, TrendingUp, ChevronRight
+  Calendar, ChevronRight
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
-  Crew, CrewMember, CrewBattle, Profile,
-  getCrew, getCrewMembers, getCrewBattles, inviteToCrew
+  Crew, CrewMember, CrewBattle,
+  getCrew, getCrewMembers, getCrewBattles
 } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { useSounds } from '@/lib/sounds'

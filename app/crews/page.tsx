@@ -5,15 +5,15 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Users, Crown, Shield, Search, Plus, ArrowLeft, Swords,
-  Trophy, Star, ChevronRight, UserPlus, LogOut, Settings,
+  Trophy, ChevronRight, UserPlus, LogOut, Settings,
   Mail, Check, X
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
-  Crew, CrewMember, CrewInvite, Profile,
+  Crew, CrewMember, CrewInvite,
   getCrews, getUserCrewMembership, getCrewMembers,
   getPendingCrewInvites, searchCrews, acceptCrewInvite,
-  declineCrewInvite, leaveCrew, getCrewBattles, CrewBattle
+  declineCrewInvite, leaveCrew
 } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { useSounds } from '@/lib/sounds'
@@ -579,7 +579,7 @@ export default function CrewsPage() {
 }
 
 function CreateCrewModal({ onClose, onCreate }: { onClose: () => void; onCreate: () => void }) {
-  const { user, isDemo } = useUserStore()
+  const { isDemo } = useUserStore()
   const sounds = useSounds()
   const [name, setName] = useState('')
   const [tag, setTag] = useState('')

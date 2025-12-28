@@ -5,10 +5,10 @@ import { useRouter, useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, Trophy, Swords, TrendingUp, Calendar,
-  Crown, Medal, Target, Flame, Clock, ChevronRight, Award, Lock
+  Crown, Target, Flame, Clock, ChevronRight, Award
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { supabase, Profile, Battle, getProfile, getRecentBattles, Achievement, ACHIEVEMENT_INFO, getUserAchievements } from '@/lib/supabase'
+import { Profile, Battle, getProfile, getRecentBattles, Achievement, ACHIEVEMENT_INFO, getUserAchievements } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, getWinRate, formatDate, cn } from '@/lib/utils'
 
 export default function ProfilePage() {
@@ -292,7 +292,7 @@ export default function ProfilePage() {
 
               {battles.length > 0 ? (
                 <div className="flex gap-2 flex-wrap">
-                  {battles.slice(0, 10).map((battle, index) => {
+                  {battles.slice(0, 10).map((battle) => {
                     const won = battle.winner_id === profileId
                     return (
                       <div

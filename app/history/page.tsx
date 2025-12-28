@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Clock, Filter, Trophy, Swords, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Clock, Swords, ChevronRight } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { supabase, Battle, Profile } from '@/lib/supabase'
+import { supabase, Battle } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, formatDate, cn } from '@/lib/utils'
 
 type FilterType = 'all' | 'wins' | 'losses'

@@ -28,7 +28,7 @@ export function AudioWaveform({
   const dataArrayRef = useRef<Uint8Array | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  const [isActive, setIsActive] = useState(false)
+  const [_isActive, setIsActive] = useState(false)
 
   const startVisualization = useCallback(async () => {
     try {

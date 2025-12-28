@@ -4,8 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
-  Mic2, MicOff, ArrowLeft, Play, Pause, RotateCcw,
-  Clock, Music, Volume2, Award
+  Mic2, MicOff, ArrowLeft, RotateCcw,
+  Clock, Music, Award
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import { getAvatarUrl, cn, formatTime } from '@/lib/utils'

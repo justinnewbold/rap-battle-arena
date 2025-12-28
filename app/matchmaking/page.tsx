@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Mic2, X, Users, Zap } from 'lucide-react'
+import { X, Users } from 'lucide-react'
 import { useUserStore, useBattleStore } from '@/lib/store'
 import { supabase, createBattle, Profile } from '@/lib/supabase'
 import { getAvatarUrl, generateRoomCode } from '@/lib/utils'
@@ -11,7 +11,7 @@ import { getAvatarUrl, generateRoomCode } from '@/lib/utils'
 export default function MatchmakingPage() {
   const router = useRouter()
   const { user, isDemo } = useUserStore()
-  const { setCurrentBattle, setMatchmaking, matchmakingTime, setMatchmakingTime } = useBattleStore()
+  const { setMatchmaking, matchmakingTime, setMatchmakingTime } = useBattleStore()
   const [status, setStatus] = useState<'searching' | 'found' | 'connecting'>('searching')
   const [opponent, setOpponent] = useState<Profile | null>(null)
   const [dots, setDots] = useState('')

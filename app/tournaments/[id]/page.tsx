@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Trophy, Users, Calendar, Clock, Crown, ArrowLeft,
+  Trophy, Users, Calendar, Crown, ArrowLeft,
   Swords, Gift, ChevronRight, Check, X, User, Play,
-  Info, Shield, AlertCircle, Share2, Copy, MessageCircle
+  Info, Shield, AlertCircle, Share2
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Bell, UserPlus, Swords, Trophy, Award, X, Check, ChevronRight
+  Bell, UserPlus, Swords, Trophy, Award, X, ChevronRight
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {

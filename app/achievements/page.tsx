@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Award, Lock, Trophy, Star, Flame, Zap } from 'lucide-react'
+import { ArrowLeft, Award, Lock } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
   Achievement,
@@ -33,7 +33,7 @@ export default function AchievementsPage() {
   const router = useRouter()
   const { user, isDemo } = useUserStore()
   const [achievements, setAchievements] = useState<Achievement[]>([])
-  const [loading, setLoading] = useState(true)
+  const [_loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'unlocked' | 'locked'>('all')
 
   useEffect(() => {

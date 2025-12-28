@@ -4,10 +4,7 @@ import {
   Track,
   LocalParticipant,
   RemoteParticipant,
-  RemoteTrackPublication,
-  LocalTrackPublication,
   ConnectionState,
-  createLocalAudioTrack,
 } from 'livekit-client'
 
 // LiveKit configuration
@@ -40,7 +37,6 @@ export type LiveKitEventHandler = {
 
 export class LiveKitManager {
   private room: Room | null = null
-  private audioTrack: LocalTrackPublication | null = null
   private eventHandlers: LiveKitEventHandler = {}
   private audioElements: Map<string, HTMLMediaElement[]> = new Map()
 
@@ -50,7 +46,7 @@ export class LiveKitManager {
     this.eventHandlers = handlers
   }
 
-  async connect(token: string, roomName?: string): Promise<boolean> {
+  async connect(token: string, _roomName?: string): Promise<boolean> {
     if (!LIVEKIT_URL) {
       console.error('LiveKit URL not configured')
       this.eventHandlers.onError?.(new Error('LiveKit URL not configured'))
@@ -95,7 +91,7 @@ export class LiveKitManager {
       this.eventHandlers.onParticipantLeft?.(participant)
     })
 
-    this.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+    this.room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
       this.eventHandlers.onTrackSubscribed?.(track, participant)
 
       // Auto-play audio tracks with proper tracking
@@ -111,7 +107,7 @@ export class LiveKitManager {
       }
     })
 
-    this.room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+    this.room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
       this.eventHandlers.onTrackUnsubscribed?.(track, participant)
 
       // Detach and clean up audio elements
@@ -233,7 +229,7 @@ export function getLiveKitManager(): LiveKitManager {
 // React hook for LiveKit
 import { useState, useEffect, useCallback } from 'react'
 
-export function useLiveKit(token?: string) {
+export function useLiveKit(_token?: string) {
   const [isConnected, setIsConnected] = useState(false)
   const [isMicEnabled, setIsMicEnabled] = useState(false)
   const [participants, setParticipants] = useState<RemoteParticipant[]>([])

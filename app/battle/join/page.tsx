@@ -3,9 +3,9 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Hash, ArrowLeft, Loader2, AlertCircle, Swords, Eye, Users } from 'lucide-react'
+import { Hash, ArrowLeft, Loader2, AlertCircle, Swords, Eye } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { supabase, findBattleByCode, joinBattle, joinAsSpectator, Battle } from '@/lib/supabase'
+import { findBattleByCode, joinBattle, joinAsSpectator, Battle } from '@/lib/supabase'
 import { getAvatarUrl } from '@/lib/utils'
 
 type JoinMode = 'contestant' | 'spectator'

@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Trophy, Medal, Crown, TrendingUp, Swords, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Trophy, Medal, Crown, Swords, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
-import { getLeaderboard, Profile, LeaderboardTimeframe, PaginatedLeaderboard } from '@/lib/supabase'
+import { getLeaderboard, Profile, LeaderboardTimeframe } from '@/lib/supabase'
 import { getAvatarUrl, getEloRank, formatElo, cn } from '@/lib/utils'
 
 const PAGE_SIZE = 25

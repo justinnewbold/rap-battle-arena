@@ -2,17 +2,16 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
-  Mic2, MicOff, SkipForward, Trophy, Volume2, VolumeX, ArrowLeft,
-  Users, Vote, Eye, ThumbsUp, Music
+  Mic2, MicOff, SkipForward, Volume2, VolumeX, ArrowLeft,
+  Vote, Eye, ThumbsUp, Music
 } from 'lucide-react'
 import { useUserStore, useBattleStore } from '@/lib/store'
 import { useToast } from '@/components/Toast'
 import {
   supabase, getBattle, Battle, Profile, Beat,
-  castVote, getVoteCounts, VoteCounts, getSpectatorCount, isUserSpectator,
-  ChatMessage
+  castVote, getVoteCounts, VoteCounts, getSpectatorCount, isUserSpectator
 } from '@/lib/supabase'
 import SpectatorChat from '@/components/SpectatorChat'
 import { getAvatarUrl, cn } from '@/lib/utils'
