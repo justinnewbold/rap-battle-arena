@@ -5,18 +5,20 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Music, ArrowLeft, Upload, Play, Pause, Trash2,
-  Globe, Lock, X, Check, Loader2, Clock, Image as ImageIcon, Volume2
+  Globe, Lock, X, Check, Loader2, Clock, Image as ImageIcon, Volume2,
+  Heart, Search, Star, TrendingUp
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
   Beat, UserBeat, getUserBeats, getPublicBeats, getBeats,
-  uploadBeat, deleteBeat, uploadBeatFile, uploadBeatCover
+  uploadBeat, deleteBeat, uploadBeatFile, uploadBeatCover,
+  favoriteBeat, unfavoriteBeat, getUserFavoriteBeats, searchBeats
 } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { DEMO_LIBRARY_BEATS, BeatStyle } from '@/lib/constants'
 import { getBeatGenerator } from '@/lib/beat-generator'
 
-type TabType = 'my-beats' | 'public' | 'library'
+type TabType = 'my-beats' | 'favorites' | 'public' | 'library'
 
 // Extended beat type that includes style for generated beats
 interface DemoBeat extends Omit<Beat, 'audio_url'> {
@@ -27,6 +29,120 @@ interface DemoBeat extends Omit<Beat, 'audio_url'> {
 interface DemoUserBeat extends Omit<UserBeat, 'audio_url'> {
   style?: BeatStyle
   audio_url: string | null
+}
+
+// BeatCard component for reusable beat display
+function BeatCard({
+  beat,
+  isPlaying,
+  isFavorite,
+  isLoading,
+  onPlay,
+  onFavorite,
+  onDelete,
+  showDelete = false,
+  showFavorite = true
+}: {
+  beat: DemoBeat | DemoUserBeat
+  isPlaying: boolean
+  isFavorite: boolean
+  isLoading: boolean
+  onPlay: () => void
+  onFavorite: () => void
+  onDelete?: () => void
+  showDelete?: boolean
+  showFavorite?: boolean
+}) {
+  function formatDuration(seconds: number) {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="card flex items-center gap-4"
+    >
+      {/* Cover / Play Button */}
+      <button
+        onClick={onPlay}
+        disabled={isLoading}
+        className={cn(
+          "w-14 h-14 rounded-xl flex items-center justify-center shrink-0 transition-all",
+          beat.cover_url ? 'bg-cover bg-center' : 'bg-purple-500/20',
+          isPlaying && 'ring-2 ring-purple-500'
+        )}
+        style={beat.cover_url ? { backgroundImage: `url(${beat.cover_url})` } : {}}
+      >
+        {isLoading ? (
+          <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+        ) : isPlaying ? (
+          <Pause className="w-6 h-6 text-purple-400" />
+        ) : (
+          <Play className="w-6 h-6 text-purple-400 ml-1" />
+        )}
+      </button>
+
+      {/* Beat Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h3 className="font-bold truncate">{beat.name}</h3>
+          {'is_public' in beat && (
+            beat.is_public ? (
+              <Globe className="w-4 h-4 text-green-400 shrink-0" />
+            ) : (
+              <Lock className="w-4 h-4 text-dark-500 shrink-0" />
+            )
+          )}
+        </div>
+        <p className="text-sm text-dark-400 truncate">{beat.artist}</p>
+        <div className="flex items-center gap-3 mt-1 text-xs text-dark-500">
+          <span>{beat.bpm} BPM</span>
+          <span>•</span>
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {formatDuration(beat.duration)}
+          </span>
+          {'play_count' in beat && (beat as UserBeat).play_count > 0 && (
+            <>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                {(beat as UserBeat).play_count} plays
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 shrink-0">
+        {showFavorite && (
+          <button
+            onClick={onFavorite}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              isFavorite
+                ? "bg-pink-500/20 text-pink-400"
+                : "hover:bg-dark-700 text-dark-500 hover:text-pink-400"
+            )}
+          >
+            <Heart className={cn("w-5 h-5", isFavorite && "fill-current")} />
+          </button>
+        )}
+        {showDelete && onDelete && (
+          <button
+            onClick={onDelete}
+            className="p-2 rounded-lg hover:bg-red-500/20 text-dark-500 hover:text-red-400 transition-colors"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+    </motion.div>
+  )
 }
 
 // Demo beats using Web Audio API generator
@@ -72,6 +188,12 @@ export default function BeatsPage() {
   const [playingBeatId, setPlayingBeatId] = useState<string | null>(null)
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null)
 
+  // Favorites and search
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<UserBeat[]>([])
+  const [searching, setSearching] = useState(false)
+
   // Upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [uploadData, setUploadData] = useState({
@@ -114,18 +236,94 @@ export default function BeatsPage() {
       setPublicBeats([])
       // Use demo beats from constants with Web Audio styles
       setLibraryBeats([...DEMO_LIBRARY_BEATS] as DemoBeat[])
+      // Demo favorites
+      setFavoriteIds(new Set(['demo-hiphop-1', 'demo-trap-1']))
     } else {
-      const [userBeats, pubBeats, libBeats] = await Promise.all([
+      const [userBeats, pubBeats, libBeats, favorites] = await Promise.all([
         getUserBeats(user!.id),
         getPublicBeats(),
-        getBeats()
+        getBeats(),
+        getUserFavoriteBeats(user!.id)
       ])
       setMyBeats(userBeats as DemoUserBeat[])
       setPublicBeats(pubBeats.filter(b => b.uploaded_by !== user!.id))
       setLibraryBeats(libBeats as DemoBeat[])
+      setFavoriteIds(new Set(favorites))
     }
     setLoading(false)
   }
+
+  async function handleToggleFavorite(beatId: string) {
+    if (!user) return
+
+    const isFavorited = favoriteIds.has(beatId)
+
+    // Optimistically update UI
+    setFavoriteIds(prev => {
+      const newSet = new Set(prev)
+      if (isFavorited) {
+        newSet.delete(beatId)
+      } else {
+        newSet.add(beatId)
+      }
+      return newSet
+    })
+
+    if (!isDemo) {
+      const success = isFavorited
+        ? await unfavoriteBeat(user.id, beatId)
+        : await favoriteBeat(user.id, beatId)
+
+      // Revert on failure
+      if (!success) {
+        setFavoriteIds(prev => {
+          const newSet = new Set(prev)
+          if (isFavorited) {
+            newSet.add(beatId)
+          } else {
+            newSet.delete(beatId)
+          }
+          return newSet
+        })
+      }
+    }
+  }
+
+  async function handleSearch() {
+    if (!searchQuery.trim() || searchQuery.length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    setSearching(true)
+    if (isDemo) {
+      // Filter library beats by search query
+      const results = DEMO_LIBRARY_BEATS.filter(b =>
+        b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        b.artist.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      setSearchResults(results as UserBeat[])
+    } else {
+      const results = await searchBeats(searchQuery)
+      setSearchResults(results)
+    }
+    setSearching(false)
+  }
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.length >= 2) {
+        handleSearch()
+      } else {
+        setSearchResults([])
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Get favorite beats for the favorites tab
+  const favoriteBeats = [...libraryBeats, ...publicBeats].filter(b => favoriteIds.has(b.id))
 
   const [audioError, setAudioError] = useState<string | null>(null)
   const [audioLoading, setAudioLoading] = useState(false)
@@ -347,6 +545,7 @@ export default function BeatsPage() {
   }
 
   const currentBeats = activeTab === 'my-beats' ? myBeats :
+    activeTab === 'favorites' ? favoriteBeats :
     activeTab === 'public' ? publicBeats : libraryBeats
 
   if (!user) return null
@@ -416,6 +615,50 @@ export default function BeatsPage() {
           )}
         </AnimatePresence>
 
+        {/* Search Bar */}
+        <div className="relative mb-6">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search beats by name or artist..."
+            className="input pl-12 pr-12 w-full"
+          />
+          {searching && (
+            <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400 animate-spin" />
+          )}
+        </div>
+
+        {/* Search Results */}
+        {searchQuery.length >= 2 && (
+          <div className="mb-6">
+            <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+              <Search className="w-5 h-5 text-purple-400" />
+              Search Results
+              <span className="text-sm text-dark-400 font-normal">({searchResults.length} found)</span>
+            </h2>
+            {searchResults.length > 0 ? (
+              <div className="space-y-3 mb-6">
+                {searchResults.slice(0, 5).map((beat) => (
+                  <BeatCard
+                    key={beat.id}
+                    beat={beat as DemoBeat}
+                    isPlaying={playingBeatId === beat.id}
+                    isFavorite={favoriteIds.has(beat.id)}
+                    isLoading={audioLoading && playingBeatId === beat.id}
+                    onPlay={() => toggleBeatPlay(beat as DemoBeat)}
+                    onFavorite={() => handleToggleFavorite(beat.id)}
+                    showDelete={false}
+                  />
+                ))}
+              </div>
+            ) : !searching ? (
+              <p className="text-dark-400 text-sm mb-6">No beats found matching "{searchQuery}"</p>
+            ) : null}
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
           <button
@@ -434,6 +677,24 @@ export default function BeatsPage() {
               activeTab === 'my-beats' ? 'bg-white/20' : 'bg-dark-600'
             )}>
               {myBeats.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('favorites')}
+            className={cn(
+              "px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap",
+              activeTab === 'favorites'
+                ? 'bg-pink-500 text-white'
+                : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
+            )}
+          >
+            <Heart className="w-4 h-4" />
+            Favorites
+            <span className={cn(
+              "text-xs px-2 py-0.5 rounded-full",
+              activeTab === 'favorites' ? 'bg-white/20' : 'bg-dark-600'
+            )}>
+              {favoriteIds.size}
             </span>
           </button>
           <button
@@ -457,7 +718,7 @@ export default function BeatsPage() {
                 : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
             )}
           >
-            <Music className="w-4 h-4" />
+            <Star className="w-4 h-4" />
             Library
           </button>
         </div>
@@ -475,89 +736,59 @@ export default function BeatsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.03 }}
-                className="card flex items-center gap-4"
               >
-                {/* Cover / Play Button */}
-                <button
-                  onClick={() => toggleBeatPlay(beat as DemoBeat)}
-                  disabled={audioLoading && playingBeatId === beat.id}
-                  className={cn(
-                    "w-14 h-14 rounded-xl flex items-center justify-center shrink-0 transition-all",
-                    beat.cover_url ? 'bg-cover bg-center' : 'bg-purple-500/20',
-                    playingBeatId === beat.id && 'ring-2 ring-purple-500'
-                  )}
-                  style={beat.cover_url ? { backgroundImage: `url(${beat.cover_url})` } : {}}
-                >
-                  {audioLoading && playingBeatId === beat.id ? (
-                    <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
-                  ) : playingBeatId === beat.id ? (
-                    <Pause className="w-6 h-6 text-purple-400" />
-                  ) : (
-                    <Play className="w-6 h-6 text-purple-400 ml-1" />
-                  )}
-                </button>
-
-                {/* Beat Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold truncate">{beat.name}</h3>
-                    {'is_public' in beat && (
-                      beat.is_public ? (
-                        <Globe className="w-4 h-4 text-green-400 shrink-0" />
-                      ) : (
-                        <Lock className="w-4 h-4 text-dark-500 shrink-0" />
-                      )
-                    )}
-                  </div>
-                  <p className="text-sm text-dark-400 truncate">{beat.artist}</p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-dark-500">
-                    <span>{beat.bpm} BPM</span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatDuration(beat.duration)}
-                    </span>
-                    {'play_count' in beat && (beat as UserBeat).play_count > 0 && (
-                      <>
-                        <span>•</span>
-                        <span>{(beat as UserBeat).play_count} plays</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                {activeTab === 'my-beats' && (
-                  <button
-                    onClick={() => handleDeleteBeat(beat.id)}
-                    className="p-2 rounded-lg hover:bg-red-500/20 text-dark-500 hover:text-red-400 transition-colors shrink-0"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                )}
+                <BeatCard
+                  beat={beat as DemoBeat}
+                  isPlaying={playingBeatId === beat.id}
+                  isFavorite={favoriteIds.has(beat.id)}
+                  isLoading={audioLoading && playingBeatId === beat.id}
+                  onPlay={() => toggleBeatPlay(beat as DemoBeat)}
+                  onFavorite={() => handleToggleFavorite(beat.id)}
+                  onDelete={activeTab === 'my-beats' ? () => handleDeleteBeat(beat.id) : undefined}
+                  showDelete={activeTab === 'my-beats'}
+                  showFavorite={activeTab !== 'my-beats'}
+                />
               </motion.div>
             ))}
           </div>
         ) : (
           <div className="card text-center py-12">
-            <Music className="w-16 h-16 mx-auto mb-4 text-dark-600" />
-            <h3 className="text-xl font-bold mb-2">
-              {activeTab === 'my-beats' ? 'No Beats Yet' :
-                activeTab === 'public' ? 'No Community Beats' : 'No Library Beats'}
-            </h3>
-            <p className="text-dark-400 mb-4">
-              {activeTab === 'my-beats'
-                ? 'Upload your first beat to use in battles'
-                : 'Check back later for more beats'}
-            </p>
-            {activeTab === 'my-beats' && (
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="btn-fire"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Your First Beat
-              </button>
+            {activeTab === 'favorites' ? (
+              <>
+                <Heart className="w-16 h-16 mx-auto mb-4 text-dark-600" />
+                <h3 className="text-xl font-bold mb-2">No Favorites Yet</h3>
+                <p className="text-dark-400 mb-4">
+                  Tap the heart icon on any beat to add it to your favorites
+                </p>
+                <button
+                  onClick={() => setActiveTab('library')}
+                  className="btn-purple"
+                >
+                  Browse Library
+                </button>
+              </>
+            ) : (
+              <>
+                <Music className="w-16 h-16 mx-auto mb-4 text-dark-600" />
+                <h3 className="text-xl font-bold mb-2">
+                  {activeTab === 'my-beats' ? 'No Beats Yet' :
+                    activeTab === 'public' ? 'No Community Beats' : 'No Library Beats'}
+                </h3>
+                <p className="text-dark-400 mb-4">
+                  {activeTab === 'my-beats'
+                    ? 'Upload your first beat to use in battles'
+                    : 'Check back later for more beats'}
+                </p>
+                {activeTab === 'my-beats' && (
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="btn-fire"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Your First Beat
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}

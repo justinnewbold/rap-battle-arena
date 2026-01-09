@@ -874,6 +874,49 @@ export async function getFriendshipStatus(userId: string, otherUserId: string): 
   return data
 }
 
+export async function rejectFriendRequest(friendshipId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('friendships')
+    .delete()
+    .eq('id', friendshipId)
+
+  if (error) {
+    console.error('Error rejecting friend request:', error)
+    return false
+  }
+  return true
+}
+
+export async function getOutgoingFriendRequests(userId: string): Promise<Friendship[]> {
+  const { data, error } = await supabase
+    .from('friendships')
+    .select(`
+      *,
+      friend:profiles!friendships_friend_id_fkey(id, username, avatar_url, elo_rating)
+    `)
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+
+  if (error) {
+    console.error('Error fetching outgoing requests:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function cancelFriendRequest(friendshipId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('friendships')
+    .delete()
+    .eq('id', friendshipId)
+
+  if (error) {
+    console.error('Error canceling friend request:', error)
+    return false
+  }
+  return true
+}
+
 // Achievements system
 export type AchievementType =
   | 'first_win'
@@ -1631,6 +1674,246 @@ export async function deleteBeat(beatId: string, userId: string): Promise<boolea
 
 export async function incrementBeatPlayCount(beatId: string): Promise<void> {
   await supabase.rpc('increment_beat_play_count', { beat_id: beatId })
+}
+
+// Beat favorites system
+export interface BeatFavorite {
+  id: string
+  user_id: string
+  beat_id: string
+  created_at: string
+}
+
+export async function favoriteBeat(userId: string, beatId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('beat_favorites')
+    .insert({ user_id: userId, beat_id: beatId })
+
+  if (error) {
+    console.error('Error favoriting beat:', error)
+    return false
+  }
+  return true
+}
+
+export async function unfavoriteBeat(userId: string, beatId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('beat_favorites')
+    .delete()
+    .eq('user_id', userId)
+    .eq('beat_id', beatId)
+
+  if (error) {
+    console.error('Error unfavoriting beat:', error)
+    return false
+  }
+  return true
+}
+
+export async function getUserFavoriteBeats(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('beat_favorites')
+    .select('beat_id')
+    .eq('user_id', userId)
+
+  if (error) {
+    console.error('Error fetching favorite beats:', error)
+    return []
+  }
+  return data?.map(f => f.beat_id) || []
+}
+
+export async function getBeatFavoriteCount(beatId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('beat_favorites')
+    .select('*', { count: 'exact', head: true })
+    .eq('beat_id', beatId)
+
+  if (error) {
+    console.error('Error counting beat favorites:', error)
+    return 0
+  }
+  return count || 0
+}
+
+export async function getFeaturedBeats(limit: number = 10): Promise<UserBeat[]> {
+  const { data, error } = await supabase
+    .from('beats')
+    .select('*')
+    .eq('is_public', true)
+    .order('play_count', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching featured beats:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function searchBeats(query: string, genre?: string): Promise<UserBeat[]> {
+  if (!query || query.length < 2) return []
+
+  const sanitizedQuery = query.replace(/[%_\\'"(),]/g, '')
+  if (!sanitizedQuery) return []
+
+  let queryBuilder = supabase
+    .from('beats')
+    .select('*')
+    .eq('is_public', true)
+    .or(`name.ilike.%${sanitizedQuery}%,artist.ilike.%${sanitizedQuery}%`)
+    .order('play_count', { ascending: false })
+    .limit(50)
+
+  const { data, error } = await queryBuilder
+
+  if (error) {
+    console.error('Error searching beats:', error)
+    return []
+  }
+  return data || []
+}
+
+// Direct Messaging System
+export interface Message {
+  id: string
+  sender_id: string
+  receiver_id: string
+  content: string
+  read: boolean
+  created_at: string
+  sender?: Profile
+  receiver?: Profile
+}
+
+export interface Conversation {
+  user: Profile
+  lastMessage: Message
+  unreadCount: number
+}
+
+export async function sendMessage(senderId: string, receiverId: string, content: string): Promise<Message | null> {
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({
+      sender_id: senderId,
+      receiver_id: receiverId,
+      content: content.trim(),
+      read: false
+    })
+    .select(`
+      *,
+      sender:profiles!messages_sender_id_fkey(id, username, avatar_url, elo_rating),
+      receiver:profiles!messages_receiver_id_fkey(id, username, avatar_url, elo_rating)
+    `)
+    .single()
+
+  if (error) {
+    console.error('Error sending message:', error)
+    return null
+  }
+  return data
+}
+
+export async function getConversation(userId: string, otherUserId: string, limit: number = 50): Promise<Message[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      sender:profiles!messages_sender_id_fkey(id, username, avatar_url, elo_rating),
+      receiver:profiles!messages_receiver_id_fkey(id, username, avatar_url, elo_rating)
+    `)
+    .or(`and(sender_id.eq.${userId},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${userId})`)
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
+  if (error) {
+    console.error('Error fetching conversation:', error)
+    return []
+  }
+  return data || []
+}
+
+export async function getConversations(userId: string): Promise<Conversation[]> {
+  // Get all unique conversations for this user
+  const { data: messages, error } = await supabase
+    .from('messages')
+    .select(`
+      *,
+      sender:profiles!messages_sender_id_fkey(id, username, avatar_url, elo_rating),
+      receiver:profiles!messages_receiver_id_fkey(id, username, avatar_url, elo_rating)
+    `)
+    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching conversations:', error)
+    return []
+  }
+
+  // Group by conversation partner and get latest message
+  const conversationMap = new Map<string, Conversation>()
+
+  for (const msg of messages || []) {
+    const otherUser = msg.sender_id === userId ? msg.receiver : msg.sender
+    if (!otherUser) continue
+
+    const existing = conversationMap.get(otherUser.id)
+    const isUnread = !msg.read && msg.receiver_id === userId
+
+    if (!existing) {
+      conversationMap.set(otherUser.id, {
+        user: otherUser,
+        lastMessage: msg,
+        unreadCount: isUnread ? 1 : 0
+      })
+    } else if (isUnread) {
+      existing.unreadCount++
+    }
+  }
+
+  return Array.from(conversationMap.values())
+}
+
+export async function markMessagesAsRead(userId: string, senderId: string): Promise<void> {
+  const { error } = await supabase
+    .from('messages')
+    .update({ read: true })
+    .eq('receiver_id', userId)
+    .eq('sender_id', senderId)
+    .eq('read', false)
+
+  if (error) {
+    console.error('Error marking messages as read:', error)
+  }
+}
+
+export async function getUnreadMessageCount(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('receiver_id', userId)
+    .eq('read', false)
+
+  if (error) {
+    console.error('Error counting unread messages:', error)
+    return 0
+  }
+  return count || 0
+}
+
+export async function deleteMessage(messageId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from('messages')
+    .delete()
+    .eq('id', messageId)
+    .eq('sender_id', userId)
+
+  if (error) {
+    console.error('Error deleting message:', error)
+    return false
+  }
+  return true
 }
 
 // Upload file to Supabase Storage

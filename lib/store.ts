@@ -128,3 +128,28 @@ export const DEMO_USER: Profile = {
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 }
+
+// Online presence tracking
+interface PresenceState {
+  onlineUsers: Set<string>
+  setOnlineUsers: (users: string[]) => void
+  addOnlineUser: (userId: string) => void
+  removeOnlineUser: (userId: string) => void
+  isUserOnline: (userId: string) => boolean
+}
+
+export const usePresenceStore = create<PresenceState>((set, get) => ({
+  onlineUsers: new Set<string>(),
+  setOnlineUsers: (users) => set({ onlineUsers: new Set(users) }),
+  addOnlineUser: (userId) => set((state) => {
+    const newSet = new Set(state.onlineUsers)
+    newSet.add(userId)
+    return { onlineUsers: newSet }
+  }),
+  removeOnlineUser: (userId) => set((state) => {
+    const newSet = new Set(state.onlineUsers)
+    newSet.delete(userId)
+    return { onlineUsers: newSet }
+  }),
+  isUserOnline: (userId) => get().onlineUsers.has(userId),
+}))
