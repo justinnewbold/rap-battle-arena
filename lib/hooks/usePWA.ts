@@ -80,27 +80,46 @@ export function usePWA() {
 
   // Register service worker
   useEffect(() => {
+    let registration: ServiceWorkerRegistration | null = null
+    let updateFoundHandler: (() => void) | null = null
+    let stateChangeHandler: (() => void) | null = null
+    let newWorkerRef: ServiceWorker | null = null
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('/sw.js')
-        .then((registration) => {
-          setState(prev => ({ ...prev, registration }))
+        .then((reg) => {
+          registration = reg
+          setState(prev => ({ ...prev, registration: reg }))
 
           // Check for updates
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing
+          updateFoundHandler = () => {
+            const newWorker = reg.installing
             if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
+              newWorkerRef = newWorker
+              stateChangeHandler = () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   setState(prev => ({ ...prev, isUpdateAvailable: true }))
                 }
-              })
+              }
+              newWorker.addEventListener('statechange', stateChangeHandler)
             }
-          })
+          }
+          reg.addEventListener('updatefound', updateFoundHandler)
         })
         .catch((error) => {
           console.error('Service Worker registration failed:', error)
         })
+    }
+
+    return () => {
+      // Clean up event listeners to prevent memory leaks
+      if (registration && updateFoundHandler) {
+        registration.removeEventListener('updatefound', updateFoundHandler)
+      }
+      if (newWorkerRef && stateChangeHandler) {
+        newWorkerRef.removeEventListener('statechange', stateChangeHandler)
+      }
     }
   }, [])
 

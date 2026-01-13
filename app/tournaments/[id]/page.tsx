@@ -202,23 +202,6 @@ export default function TournamentDetailPage() {
     }
   }
 
-  function getRoundName(round: number, totalRounds: number) {
-    const remaining = totalRounds - round + 1
-    if (remaining === 1) return 'Finals'
-    if (remaining === 2) return 'Semifinals'
-    if (remaining === 3) return 'Quarterfinals'
-    return `Round ${round}`
-  }
-
-  // Group matches by round
-  const matchesByRound = matches.reduce((acc, match) => {
-    if (!acc[match.round]) acc[match.round] = []
-    acc[match.round].push(match)
-    return acc
-  }, {} as Record<number, TournamentMatch[]>)
-
-  const totalRounds = Math.max(...Object.keys(matchesByRound).map(Number), 0)
-
   if (loading) {
     return (
       <div className="min-h-screen bg-dark-950 flex items-center justify-center">

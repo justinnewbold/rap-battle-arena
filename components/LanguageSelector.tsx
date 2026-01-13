@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Globe, Check, ChevronDown } from 'lucide-react'
-import { useTranslation, SUPPORTED_LOCALES, Locale } from '@/lib/i18n'
+import { useTranslation, SUPPORTED_LOCALES } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 interface LanguageSelectorProps {

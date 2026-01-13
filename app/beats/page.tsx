@@ -302,7 +302,7 @@ export default function BeatsPage() {
         b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         b.artist.toLowerCase().includes(searchQuery.toLowerCase())
       )
-      setSearchResults(results as UserBeat[])
+      setSearchResults(results as unknown as UserBeat[])
     } else {
       const results = await searchBeats(searchQuery)
       setSearchResults(results)

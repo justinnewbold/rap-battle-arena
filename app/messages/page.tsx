@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -44,7 +44,7 @@ const DEMO_MESSAGES: Message[] = [
   { id: 'd5', sender_id: 'f1', receiver_id: 'demo', content: 'GG! That last round was fire', read: false, created_at: new Date(Date.now() - 300000).toISOString() },
 ]
 
-export default function MessagesPage() {
+function MessagesPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, isDemo } = useUserStore()
@@ -625,5 +625,17 @@ export default function MessagesPage() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-dark-950 flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-fire-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <MessagesPageContent />
+    </Suspense>
   )
 }
