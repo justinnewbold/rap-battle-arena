@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Trophy, User, Play, Eye, Crown, Loader2, Swords, Check } from 'lucide-react'
-import { TournamentMatch, Profile, supabase } from '@/lib/supabase'
+import { useState, useRef } from 'react'
+import { motion } from 'framer-motion'
+import { Trophy, User, Play, Eye, Crown, Swords, Check } from 'lucide-react'
+import { TournamentMatch, Profile } from '@/lib/supabase'
 import { getAvatarUrl, cn } from '@/lib/utils'
 
 interface TournamentBracketProps {
@@ -12,11 +12,6 @@ interface TournamentBracketProps {
   onMatchClick?: (match: TournamentMatch) => void
   currentUserId?: string
   isDemo?: boolean
-}
-
-interface BracketMatch extends TournamentMatch {
-  nextMatchId?: string
-  bracketPosition: number
 }
 
 function MatchCard({
@@ -184,64 +179,16 @@ function PlayerSlot({
   )
 }
 
-function BracketConnector({
-  fromCount,
-  toCount,
-  roundHeight
-}: {
-  fromCount: number
-  toCount: number
-  roundHeight: number
-}) {
-  // Create SVG connector lines between rounds
-  const matchHeight = 140 // Approximate height of a match card
-  const gap = 16 // Gap between matches
-
-  return (
-    <svg
-      className="absolute top-0 -right-8 w-8"
-      style={{ height: roundHeight }}
-      viewBox={`0 0 32 ${roundHeight}`}
-      fill="none"
-    >
-      {Array.from({ length: toCount }).map((_, toIndex) => {
-        const fromIndex1 = toIndex * 2
-        const fromIndex2 = toIndex * 2 + 1
-
-        const fromY1 = fromIndex1 * (matchHeight + gap) + matchHeight / 2
-        const fromY2 = fromIndex2 * (matchHeight + gap) + matchHeight / 2
-        const toY = toIndex * (matchHeight * 2 + gap * 2) + matchHeight
-
-        return (
-          <g key={toIndex}>
-            {/* Line from top match */}
-            <path
-              d={`M 0 ${fromY1} H 16 V ${toY} H 32`}
-              stroke="currentColor"
-              strokeWidth="2"
-              className="text-dark-600"
-            />
-            {/* Line from bottom match */}
-            <path
-              d={`M 0 ${fromY2} H 16 V ${toY}`}
-              stroke="currentColor"
-              strokeWidth="2"
-              className="text-dark-600"
-            />
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
 export default function TournamentBracket({
   matches,
-  tournamentId,
+  tournamentId: _tournamentId,
   onMatchClick,
   currentUserId,
-  isDemo = false
+  isDemo: _isDemo = false
 }: TournamentBracketProps) {
+  // Unused but kept for API compatibility
+  void _tournamentId
+  void _isDemo
   const containerRef = useRef<HTMLDivElement>(null)
   const [selectedRound, setSelectedRound] = useState<number | null>(null)
 

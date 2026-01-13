@@ -82,6 +82,9 @@ function BattleContent() {
   // Supabase channel ref for cleanup
   const battleChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
+  // Track timeouts for cleanup to prevent memory leaks
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([])
+
   useEffect(() => {
     // Preload sounds on mount
     sounds.preload()
@@ -123,6 +126,9 @@ function BattleContent() {
         supabase.removeChannel(battleChannelRef.current)
         battleChannelRef.current = null
       }
+      // Clear all tracked timeouts to prevent memory leaks
+      timeoutRefs.current.forEach(clearTimeout)
+      timeoutRefs.current = []
     }
   }, [battleId])
 
@@ -226,9 +232,10 @@ function BattleContent() {
     setSpectatorCount(isSpectator ? 1 : 0)
 
     // Start countdown after a brief moment
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setPhase('countdown')
     }, 1500)
+    timeoutRefs.current.push(timeoutId)
   }
 
   async function loadBattle() {
@@ -390,7 +397,7 @@ function BattleContent() {
 
         // In demo mode, simulate voting results after delay
         if (isDemo) {
-          setTimeout(() => {
+          const voteTimeoutId = setTimeout(() => {
             const p1Votes = Math.floor(Math.random() * 10) + 5
             const p2Votes = Math.floor(Math.random() * 10) + 5
             setVoteCounts({
@@ -399,6 +406,7 @@ function BattleContent() {
               totalVotes: p1Votes + p2Votes
             })
           }, 2000)
+          timeoutRefs.current.push(voteTimeoutId)
         }
       } else {
         // Per-round voting if enabled
@@ -422,11 +430,13 @@ function BattleContent() {
 
       // In demo, simulate opponent's turn
       if (isDemo) {
-        setTimeout(() => {
-          setTimeout(() => {
+        const countdownTimeoutId = setTimeout(() => {
+          const turnTimeoutId = setTimeout(() => {
             endTurn()
           }, 3000 + Math.random() * 2000)
+          timeoutRefs.current.push(turnTimeoutId)
         }, COUNTDOWN_DURATION * 1000)
+        timeoutRefs.current.push(countdownTimeoutId)
       }
     }
   }
@@ -562,8 +572,8 @@ function BattleContent() {
               )}
               {phase === 'waiting' && 'Waiting...'}
               {phase === 'countdown' && 'Get Ready!'}
-              {phase === 'player1' && `${player1.username}'s Turn`}
-              {phase === 'player2' && `${player2?.username}'s Turn`}
+              {phase === 'player1' && `${player1?.username || 'Player 1'}'s Turn`}
+              {phase === 'player2' && `${player2?.username || 'Player 2'}'s Turn`}
               {phase === 'voting' && 'Vote Now!'}
               {phase === 'results' && 'Battle Complete!'}
             </div>
@@ -592,20 +602,20 @@ function BattleContent() {
               phase === 'player1' ? 'border-fire-500 glow-fire' : 'border-dark-600',
               canVote && 'cursor-pointer hover:border-fire-400'
             )}
-              onClick={() => canVote && handleVote(player1.id)}
+              onClick={() => canVote && player1 && handleVote(player1.id)}
             >
               <img
-                src={getAvatarUrl(player1.username, player1.avatar_url)}
-                alt={player1.username}
+                src={getAvatarUrl(player1?.username || '', player1?.avatar_url)}
+                alt={player1?.username || 'Player 1'}
                 className="w-full h-full object-cover"
               />
-              {votedFor === player1.id && (
+              {votedFor === player1?.id && (
                 <div className="absolute inset-0 bg-fire-500/50 flex items-center justify-center">
                   <ThumbsUp className="w-8 h-8 text-white" />
                 </div>
               )}
             </div>
-            <p className="font-bold">{player1.username}</p>
+            <p className="font-bold">{player1?.username || 'Player 1'}</p>
             {showVotes && (
               <p className="text-sm text-fire-400 font-bold">
                 {voteCounts.player1Votes} votes
@@ -762,15 +772,15 @@ function BattleContent() {
 
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <button
-                        onClick={() => handleVote(player1.id)}
+                        onClick={() => player1 && handleVote(player1.id)}
                         className="p-4 bg-fire-500/20 border border-fire-500/30 rounded-xl hover:bg-fire-500/30 transition-all"
                       >
                         <img
-                          src={getAvatarUrl(player1.username, player1.avatar_url)}
-                          alt={player1.username}
+                          src={getAvatarUrl(player1?.username || '', player1?.avatar_url)}
+                          alt={player1?.username || 'Player 1'}
                           className="w-16 h-16 rounded-full mx-auto mb-2"
                         />
-                        <p className="font-bold">{player1.username}</p>
+                        <p className="font-bold">{player1?.username || 'Player 1'}</p>
                       </button>
 
                       <button
@@ -790,14 +800,14 @@ function BattleContent() {
                   <>
                     <div className="text-green-400 text-xl font-bold mb-2">Vote Cast!</div>
                     <p className="text-dark-400 mb-4">
-                      You voted for {votedFor === player1.id ? player1.username : player2?.username}
+                      You voted for {votedFor === player1?.id ? player1?.username : player2?.username}
                     </p>
                     {showVotes && (
                       <div className="bg-dark-800/50 rounded-xl p-4 mb-4">
                         <p className="text-sm text-dark-400 mb-2">Current Results</p>
                         <div className="flex justify-between">
-                          <span className="text-fire-400">{player1.username}: {voteCounts.player1Votes}</span>
-                          <span className="text-ice-400">{player2?.username}: {voteCounts.player2Votes}</span>
+                          <span className="text-fire-400">{player1?.username || 'Player 1'}: {voteCounts.player1Votes}</span>
+                          <span className="text-ice-400">{player2?.username || 'Player 2'}: {voteCounts.player2Votes}</span>
                         </div>
                       </div>
                     )}
@@ -814,8 +824,8 @@ function BattleContent() {
                   <div className="bg-dark-800/50 rounded-xl p-4">
                     <p className="text-sm text-dark-400 mb-2">Current Votes</p>
                     <div className="flex justify-between text-lg font-bold">
-                      <span className="text-fire-400">{player1.username}: {voteCounts.player1Votes}</span>
-                      <span className="text-ice-400">{player2?.username}: {voteCounts.player2Votes}</span>
+                      <span className="text-fire-400">{player1?.username || 'Player 1'}: {voteCounts.player1Votes}</span>
+                      <span className="text-ice-400">{player2?.username || 'Player 2'}: {voteCounts.player2Votes}</span>
                     </div>
                   </div>
                 )}
@@ -842,11 +852,11 @@ function BattleContent() {
             className="text-center max-w-md w-full"
           >
             <div className="text-6xl mb-4">
-              {winner === 1 && user?.id === player1.id ? '🏆' : winner === 2 && user?.id === player2?.id ? '🏆' : isSpectator ? '🎉' : '😔'}
+              {winner === 1 && user?.id === player1?.id ? '🏆' : winner === 2 && user?.id === player2?.id ? '🏆' : isSpectator ? '🎉' : '😔'}
             </div>
 
             <h2 className="text-3xl font-bold mb-2">
-              {winner === 1 ? player1.username : player2?.username} Wins!
+              {winner === 1 ? player1?.username : player2?.username} Wins!
             </h2>
 
             <div className="card mt-6 text-left">
@@ -863,11 +873,11 @@ function BattleContent() {
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
                       <img
-                        src={getAvatarUrl(player1.username, player1.avatar_url)}
-                        alt={player1.username}
+                        src={getAvatarUrl(player1?.username || '', player1?.avatar_url)}
+                        alt={player1?.username || 'Player 1'}
                         className="w-10 h-10 rounded-full"
                       />
-                      <span className="font-medium">{player1.username}</span>
+                      <span className="font-medium">{player1?.username || 'Player 1'}</span>
                     </div>
                     <span className="text-2xl font-bold">
                       {voteCounts.player1Votes} votes

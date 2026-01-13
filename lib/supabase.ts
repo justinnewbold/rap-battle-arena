@@ -1765,6 +1765,11 @@ export async function searchBeats(query: string, genre?: string): Promise<UserBe
     .order('play_count', { ascending: false })
     .limit(50)
 
+  // Filter by genre if provided
+  if (genre) {
+    queryBuilder = queryBuilder.eq('genre', genre)
+  }
+
   const { data, error } = await queryBuilder
 
   if (error) {

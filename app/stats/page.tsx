@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import {
   ArrowLeft, TrendingUp, TrendingDown, BarChart3, Target,
   Flame, Zap, Music, Mic, Trophy, Calendar, Activity, Swords,
-  Brain, Lightbulb, AlertCircle, CheckCircle, ChevronRight
+  Brain, Lightbulb, AlertCircle, CheckCircle
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
