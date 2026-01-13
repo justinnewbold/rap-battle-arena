@@ -16,7 +16,7 @@ import {
 } from '@/lib/supabase'
 import { getAvatarUrl, formatElo, getEloRank, cn } from '@/lib/utils'
 import { useSounds } from '@/lib/sounds'
-import { usePresence, useFriendPresence } from '@/lib/hooks/usePresence'
+import { usePresence } from '@/lib/hooks/usePresence'
 
 // Demo friends data
 const DEMO_FRIENDS: Profile[] = [
@@ -84,8 +84,6 @@ export default function FriendsPage() {
   const [searchResults, setSearchResults] = useState<SearchResultWithStatus[]>([])
   const [searching, setSearching] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-
-  const friendPresence = useFriendPresence(friends.map(f => f.id))
 
   useEffect(() => {
     if (!user) {
