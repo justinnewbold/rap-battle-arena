@@ -15,6 +15,7 @@ import {
   joinTournament, leaveTournament, isUserInTournament, supabase
 } from '@/lib/supabase'
 import { getAvatarUrl, cn, generateRoomCode } from '@/lib/utils'
+import TournamentBracket from '@/components/TournamentBracket'
 
 // Demo data
 const DEMO_TOURNAMENT: Tournament = {
@@ -408,111 +409,13 @@ export default function TournamentDetailPage() {
             className="card overflow-x-auto"
           >
             <h2 className="text-xl font-bold mb-6">Tournament Bracket</h2>
-
-            {matches.length > 0 ? (
-              <div className="flex gap-8 min-w-max pb-4">
-                {Array.from({ length: totalRounds }, (_, i) => i + 1).map((round) => (
-                  <div key={round} className="flex flex-col gap-4">
-                    <h3 className="text-center font-medium text-dark-400 mb-2">
-                      {getRoundName(round, totalRounds)}
-                    </h3>
-
-                    <div className="flex flex-col justify-around flex-1 gap-4">
-                      {matchesByRound[round]?.map((match) => (
-                        <div
-                          key={match.id}
-                          onClick={() => handleMatchClick(match)}
-                          className={cn(
-                            "bg-dark-800 rounded-xl p-3 w-56 border transition-all",
-                            match.status === 'in_progress' ? 'border-fire-500/50 cursor-pointer hover:border-fire-500' :
-                            match.status === 'complete' ? 'border-dark-600' :
-                            match.status === 'ready' ? 'border-green-500/50 cursor-pointer hover:border-green-500' :
-                            'border-dark-700'
-                          )}
-                        >
-                          {/* Match status */}
-                          {match.status === 'in_progress' && (
-                            <div className="text-xs text-fire-400 font-medium mb-2 flex items-center gap-1">
-                              <span className="w-2 h-2 bg-fire-500 rounded-full animate-pulse" />
-                              LIVE - Click to Watch
-                            </div>
-                          )}
-                          {match.status === 'ready' && (
-                            <div className="text-xs text-green-400 font-medium mb-2 flex items-center gap-1">
-                              <Play className="w-3 h-3" />
-                              Ready - Click to Start
-                            </div>
-                          )}
-
-                          {/* Player 1 */}
-                          <div className={cn(
-                            "flex items-center gap-2 p-2 rounded-lg",
-                            match.winner_id === match.player1_id ? 'bg-green-500/20' : 'bg-dark-700/50'
-                          )}>
-                            {match.player1 ? (
-                              <>
-                                <img
-                                  src={getAvatarUrl(match.player1.username, match.player1.avatar_url)}
-                                  alt={match.player1.username}
-                                  className="w-8 h-8 rounded-full"
-                                />
-                                <span className="font-medium truncate flex-1">{match.player1.username}</span>
-                                {match.winner_id === match.player1_id && (
-                                  <Check className="w-4 h-4 text-green-400" />
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center">
-                                  <User className="w-4 h-4 text-dark-500" />
-                                </div>
-                                <span className="text-dark-500">TBD</span>
-                              </>
-                            )}
-                          </div>
-
-                          {/* VS */}
-                          <div className="text-center text-xs text-dark-500 py-1">vs</div>
-
-                          {/* Player 2 */}
-                          <div className={cn(
-                            "flex items-center gap-2 p-2 rounded-lg",
-                            match.winner_id === match.player2_id ? 'bg-green-500/20' : 'bg-dark-700/50'
-                          )}>
-                            {match.player2 ? (
-                              <>
-                                <img
-                                  src={getAvatarUrl(match.player2.username, match.player2.avatar_url)}
-                                  alt={match.player2.username}
-                                  className="w-8 h-8 rounded-full"
-                                />
-                                <span className="font-medium truncate flex-1">{match.player2.username}</span>
-                                {match.winner_id === match.player2_id && (
-                                  <Check className="w-4 h-4 text-green-400" />
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center">
-                                  <User className="w-4 h-4 text-dark-500" />
-                                </div>
-                                <span className="text-dark-500">TBD</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-dark-400">
-                <Swords className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">Bracket not generated yet</p>
-                <p className="text-sm">The bracket will be created once registration closes</p>
-              </div>
-            )}
+            <TournamentBracket
+              matches={matches}
+              tournamentId={tournamentId}
+              onMatchClick={handleMatchClick}
+              currentUserId={user?.id}
+              isDemo={isDemo}
+            />
           </motion.div>
         )}
 

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, TrendingUp, TrendingDown, BarChart3, Target,
-  Flame, Zap, Music, Mic, Trophy, Calendar, Activity, Swords
+  Flame, Zap, Music, Mic, Trophy, Calendar, Activity, Swords,
+  Brain, Lightbulb, AlertCircle, CheckCircle, ChevronRight
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -42,7 +43,9 @@ interface BattleStats {
   monthlyStats: { month: string; wins: number; losses: number }[]
   eloHistory: { date: string; elo: number; change: number }[]
   winRateTrend: { period: string; winRate: number; battles: number }[]
-  topOpponents: { opponent: string; wins: number; losses: number; avgScore: number }[]
+  topOpponents: { opponent: string; opponentId: string; wins: number; losses: number; avgScore: number; opponentElo: number }[]
+  predictions: { opponent: string; winProbability: number; recommendation: string }[]
+  insights: { title: string; description: string; type: 'strength' | 'weakness' | 'tip' }[]
   scoreDistribution: { range: string; count: number }[]
   radarData: { category: string; score: number; fullMark: number }[]
 }
@@ -91,10 +94,22 @@ const DEMO_STATS: BattleStats = {
     { period: 'Week 6', winRate: 71, battles: 7 },
   ],
   topOpponents: [
-    { opponent: 'MC_Thunder', wins: 3, losses: 1, avgScore: 7.8 },
-    { opponent: 'FlowMaster', wins: 2, losses: 2, avgScore: 7.2 },
-    { opponent: 'RhymeKing', wins: 2, losses: 1, avgScore: 7.5 },
-    { opponent: 'BeatDropper', wins: 1, losses: 2, avgScore: 6.9 },
+    { opponent: 'MC_Thunder', opponentId: 'f1', wins: 3, losses: 1, avgScore: 7.8, opponentElo: 1450 },
+    { opponent: 'FlowMaster', opponentId: 'f2', wins: 2, losses: 2, avgScore: 7.2, opponentElo: 1520 },
+    { opponent: 'RhymeKing', opponentId: 'f3', wins: 2, losses: 1, avgScore: 7.5, opponentElo: 1320 },
+    { opponent: 'BeatDropper', opponentId: 'f4', wins: 1, losses: 2, avgScore: 6.9, opponentElo: 1380 },
+  ],
+  predictions: [
+    { opponent: 'MC_Thunder', winProbability: 68, recommendation: 'Play aggressive - your Flow beats their Rhymes' },
+    { opponent: 'FlowMaster', winProbability: 42, recommendation: 'Focus on Punchlines - their weakness' },
+    { opponent: 'RhymeKing', winProbability: 72, recommendation: 'Strong matchup - maintain your style' },
+    { opponent: 'BeatDropper', winProbability: 38, recommendation: 'Work on Delivery - they excel there' },
+  ],
+  insights: [
+    { title: 'Flow Master', description: 'Your Flow score (8.2) is in the top 15% of all players', type: 'strength' },
+    { title: 'Punchline Practice', description: 'Consider focusing on wordplay - your Punchlines (6.8) have room for improvement', type: 'weakness' },
+    { title: 'Winning Streak', description: "You perform 23% better when on a 2+ win streak. Keep the momentum!", type: 'tip' },
+    { title: 'Peak Hours', description: 'Your win rate is highest between 8-10 PM. Schedule battles accordingly!', type: 'tip' },
   ],
   scoreDistribution: [
     { range: '5-6', count: 8 },
@@ -465,11 +480,111 @@ export default function StatsPage() {
           </motion.div>
         </div>
 
-        {/* Score Distribution */}
+        {/* Matchup Predictions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
+          className="card mb-6"
+        >
+          <h3 className="font-bold mb-4 flex items-center gap-2">
+            <Brain className="w-5 h-5 text-purple-400" />
+            Matchup Predictions
+          </h3>
+          <p className="text-sm text-dark-400 mb-4">
+            Win probability based on your history and category strengths
+          </p>
+          <div className="space-y-3">
+            {stats.predictions.map((pred, index) => (
+              <motion.div
+                key={pred.opponent}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.65 + index * 0.05 }}
+                className="bg-dark-800 rounded-xl p-4"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold">{pred.opponent}</span>
+                  <span className={cn(
+                    "text-lg font-bold",
+                    pred.winProbability >= 60 ? "text-green-400" :
+                    pred.winProbability >= 45 ? "text-gold-400" : "text-fire-400"
+                  )}>
+                    {pred.winProbability}%
+                  </span>
+                </div>
+                <div className="h-2 bg-dark-700 rounded-full overflow-hidden mb-2">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pred.winProbability}%` }}
+                    transition={{ duration: 0.8, delay: 0.7 + index * 0.05 }}
+                    className={cn(
+                      "h-full rounded-full",
+                      pred.winProbability >= 60 ? "bg-green-500" :
+                      pred.winProbability >= 45 ? "bg-gold-500" : "bg-fire-500"
+                    )}
+                  />
+                </div>
+                <p className="text-xs text-dark-400 flex items-center gap-1">
+                  <Lightbulb className="w-3 h-3 text-gold-400" />
+                  {pred.recommendation}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Performance Insights */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65 }}
+          className="card mb-6"
+        >
+          <h3 className="font-bold mb-4 flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-gold-400" />
+            Performance Insights
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            {stats.insights.map((insight, index) => (
+              <motion.div
+                key={insight.title}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.7 + index * 0.05 }}
+                className={cn(
+                  "p-4 rounded-xl border",
+                  insight.type === 'strength' && "bg-green-500/10 border-green-500/30",
+                  insight.type === 'weakness' && "bg-fire-500/10 border-fire-500/30",
+                  insight.type === 'tip' && "bg-gold-500/10 border-gold-500/30"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  {insight.type === 'strength' && <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />}
+                  {insight.type === 'weakness' && <AlertCircle className="w-5 h-5 text-fire-400 shrink-0 mt-0.5" />}
+                  {insight.type === 'tip' && <Lightbulb className="w-5 h-5 text-gold-400 shrink-0 mt-0.5" />}
+                  <div>
+                    <h4 className={cn(
+                      "font-semibold mb-1",
+                      insight.type === 'strength' && "text-green-400",
+                      insight.type === 'weakness' && "text-fire-400",
+                      insight.type === 'tip' && "text-gold-400"
+                    )}>
+                      {insight.title}
+                    </h4>
+                    <p className="text-sm text-dark-400">{insight.description}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Score Distribution */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
           className="card mb-6"
         >
           <h3 className="font-bold mb-4 flex items-center gap-2">

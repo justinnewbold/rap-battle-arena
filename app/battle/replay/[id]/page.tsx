@@ -5,7 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, Play, Pause, Share2, Trophy, Swords, Check,
-  MessageSquare, Star, Mic, ChevronDown, ChevronUp, Users
+  MessageSquare, Star, Mic, ChevronDown, ChevronUp, Users,
+  Scissors, Download, Twitter, Link, Copy, X
 } from 'lucide-react'
 import { useUserStore } from '@/lib/store'
 import {
@@ -163,6 +164,10 @@ export default function BattleReplayPage() {
   const [activeRound, setActiveRound] = useState(1)
   const [playingAudio, setPlayingAudio] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [showClipModal, setShowClipModal] = useState(false)
+  const [selectedClipRound, setSelectedClipRound] = useState<BattleRound | null>(null)
+  const [clipCopied, setClipCopied] = useState(false)
 
   useEffect(() => {
     loadBattleData()
@@ -213,10 +218,78 @@ export default function BattleReplayPage() {
   }
 
   function handleShare() {
+    setShowShareModal(true)
+  }
+
+  function copyShareLink() {
     const url = `${window.location.origin}/battle/replay/${battleId}`
     navigator.clipboard.writeText(url)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  function shareToTwitter() {
+    if (!battle) return
+    const text = `Check out this epic rap battle between ${battle.player1?.username} vs ${battle.player2?.username}! 🎤🔥`
+    const url = `${window.location.origin}/battle/replay/${battleId}`
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank')
+  }
+
+  function createClip(round: BattleRound) {
+    setSelectedClipRound(round)
+    setShowClipModal(true)
+  }
+
+  function copyClipText() {
+    if (!selectedClipRound || !battle) return
+    const player = selectedClipRound.player_id === battle.player1_id ? battle.player1 : battle.player2
+    const clipText = `🎤 ${player?.username} dropped bars:\n\n"${selectedClipRound.transcript}"\n\n📊 Score: ${selectedClipRound.total_score?.toFixed(1)}/50\n🔗 Watch the full battle: ${window.location.origin}/battle/replay/${battleId}`
+    navigator.clipboard.writeText(clipText)
+    setClipCopied(true)
+    setTimeout(() => setClipCopied(false), 2000)
+  }
+
+  function downloadTranscript() {
+    if (!battle || rounds.length === 0) return
+
+    let transcript = `RAP BATTLE TRANSCRIPT\n`
+    transcript += `${'='.repeat(50)}\n\n`
+    transcript += `${battle.player1?.username} vs ${battle.player2?.username}\n`
+    transcript += `Date: ${formatDate(battle.completed_at || battle.created_at)}\n`
+    transcript += `Winner: ${battle.winner_id === battle.player1_id ? battle.player1?.username : battle.player2?.username}\n`
+    transcript += `Final Score: ${battle.player1_total_score?.toFixed(1)} - ${battle.player2_total_score?.toFixed(1)}\n\n`
+    transcript += `${'='.repeat(50)}\n\n`
+
+    const roundsByNumber = rounds.reduce((acc, round) => {
+      if (!acc[round.round_number]) acc[round.round_number] = []
+      acc[round.round_number].push(round)
+      return acc
+    }, {} as Record<number, BattleRound[]>)
+
+    Object.entries(roundsByNumber).forEach(([roundNum, roundData]) => {
+      transcript += `ROUND ${roundNum}\n`
+      transcript += `${'-'.repeat(30)}\n\n`
+
+      roundData.forEach(round => {
+        const player = round.player_id === battle.player1_id ? battle.player1 : battle.player2
+        transcript += `[${player?.username}] (Score: ${round.total_score?.toFixed(1)}/50)\n\n`
+        transcript += `${round.transcript || 'No transcript available'}\n\n`
+        if (round.judge_feedback) {
+          transcript += `Judge: "${round.judge_feedback}"\n\n`
+        }
+        transcript += `\n`
+      })
+    })
+
+    const blob = new Blob([transcript], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `battle-${battleId}-transcript.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   function playAudio(url: string, roundId: string) {
@@ -288,13 +361,23 @@ export default function BattleReplayPage() {
             Back to History
           </button>
 
-          <button
-            onClick={handleShare}
-            className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 rounded-lg transition-colors"
-          >
-            {copied ? <Check className="w-4 h-4 text-green-400" /> : <Share2 className="w-4 h-4" />}
-            {copied ? 'Copied!' : 'Share'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={downloadTranscript}
+              className="flex items-center gap-2 px-4 py-2 bg-dark-800 hover:bg-dark-700 rounded-lg transition-colors"
+              title="Download transcript"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Transcript</span>
+            </button>
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
+            </button>
+          </div>
         </div>
 
         {/* Battle Header Card */}
@@ -467,6 +550,20 @@ export default function BattleReplayPage() {
                     </p>
                   </div>
 
+                  {/* Clip Button */}
+                  {round.transcript && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        createClip(round)
+                      }}
+                      className="p-2 rounded-lg bg-dark-700 hover:bg-purple-500/20 transition-colors"
+                      title="Create clip"
+                    >
+                      <Scissors className="w-5 h-5 text-purple-400" />
+                    </button>
+                  )}
+
                   {/* Audio Play Button */}
                   {round.audio_url && (
                     <button
@@ -621,6 +718,160 @@ export default function BattleReplayPage() {
           </button>
         </div>
       </div>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowShareModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-dark-900 rounded-2xl p-6 max-w-sm w-full border border-dark-700"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold">Share Battle</h3>
+                <button
+                  onClick={() => setShowShareModal(false)}
+                  className="p-2 hover:bg-dark-800 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={copyShareLink}
+                  className="w-full flex items-center gap-3 p-4 bg-dark-800 hover:bg-dark-700 rounded-xl transition-colors"
+                >
+                  {copied ? (
+                    <Check className="w-5 h-5 text-green-400" />
+                  ) : (
+                    <Link className="w-5 h-5 text-purple-400" />
+                  )}
+                  <span className="flex-1 text-left">
+                    {copied ? 'Link Copied!' : 'Copy Link'}
+                  </span>
+                </button>
+
+                <button
+                  onClick={shareToTwitter}
+                  className="w-full flex items-center gap-3 p-4 bg-dark-800 hover:bg-dark-700 rounded-xl transition-colors"
+                >
+                  <Twitter className="w-5 h-5 text-[#1DA1F2]" />
+                  <span className="flex-1 text-left">Share to Twitter</span>
+                </button>
+
+                <button
+                  onClick={downloadTranscript}
+                  className="w-full flex items-center gap-3 p-4 bg-dark-800 hover:bg-dark-700 rounded-xl transition-colors"
+                >
+                  <Download className="w-5 h-5 text-ice-400" />
+                  <span className="flex-1 text-left">Download Transcript</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Clip Modal */}
+      <AnimatePresence>
+        {showClipModal && selectedClipRound && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowClipModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-dark-900 rounded-2xl p-6 max-w-md w-full border border-dark-700"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <Scissors className="w-5 h-5 text-purple-400" />
+                  Create Clip
+                </h3>
+                <button
+                  onClick={() => setShowClipModal(false)}
+                  className="p-2 hover:bg-dark-800 rounded-lg"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Preview */}
+                <div className="bg-dark-800 rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <img
+                      src={getAvatarUrl(
+                        selectedClipRound.player_id === battle?.player1_id
+                          ? battle?.player1?.username || ''
+                          : battle?.player2?.username || '',
+                        selectedClipRound.player_id === battle?.player1_id
+                          ? battle?.player1?.avatar_url
+                          : battle?.player2?.avatar_url
+                      )}
+                      alt="Player"
+                      className="w-10 h-10 rounded-full"
+                    />
+                    <div>
+                      <p className="font-semibold">
+                        {selectedClipRound.player_id === battle?.player1_id
+                          ? battle?.player1?.username
+                          : battle?.player2?.username}
+                      </p>
+                      <p className="text-xs text-dark-400">Round {selectedClipRound.round_number}</p>
+                    </div>
+                    <div className="ml-auto text-right">
+                      <p className="text-gold-400 font-bold">{selectedClipRound.total_score?.toFixed(1)}</p>
+                      <p className="text-xs text-dark-400">Score</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-dark-300 line-clamp-4 font-mono">
+                    "{selectedClipRound.transcript}"
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <button
+                  onClick={copyClipText}
+                  className="w-full btn-purple flex items-center justify-center gap-2"
+                >
+                  {clipCopied ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-5 h-5" />
+                      Copy Clip Text
+                    </>
+                  )}
+                </button>
+
+                <p className="text-xs text-dark-500 text-center">
+                  Share this clip on social media or messaging apps
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
