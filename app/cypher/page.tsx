@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { supabase } from '@/lib/supabase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { Mic, Users, Music, Clock, Plus, Play, Radio } from 'lucide-react'
 
 interface CypherSession {
@@ -29,7 +27,6 @@ export default function CypherPage() {
   const [activeCyphers, setActiveCyphers] = useState<CypherSession[]>([])
   const [scheduledCyphers, setScheduledCyphers] = useState<CypherSession[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
     loadCyphers()
@@ -38,14 +35,12 @@ export default function CypherPage() {
   const loadCyphers = async () => {
     setLoading(true)
     try {
-      // Load active cyphers
       const { data: active } = await supabase
         .from('cypher_sessions')
         .select('*')
         .eq('status', 'active')
         .order('started_at', { ascending: false })
 
-      // Load scheduled cyphers
       const { data: scheduled } = await supabase
         .from('cypher_sessions')
         .select('*')
@@ -85,12 +80,12 @@ export default function CypherPage() {
             <Radio className="h-10 w-10 text-green-500" />
             Cypher Sessions
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-dark-400 mt-2">
             Join the circle. Freestyle, pass the mic, keep the flow going.
           </p>
         </div>
-        <Button size="lg" className="gap-2" onClick={createCypher}>
-          <Plus className="h-5 w-5" />
+        <Button size="lg" onClick={createCypher}>
+          <Plus className="h-5 w-5 mr-2" />
           Start Cypher
         </Button>
       </div>
@@ -98,47 +93,47 @@ export default function CypherPage() {
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Radio className="h-8 w-8 text-green-500" />
               <div>
                 <p className="text-2xl font-bold">{activeCyphers.length}</p>
-                <p className="text-sm text-muted-foreground">Live Cyphers</p>
+                <p className="text-sm text-dark-400">Live Cyphers</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Users className="h-8 w-8 text-blue-500" />
               <div>
                 <p className="text-2xl font-bold">
                   {activeCyphers.reduce((sum, c) => sum + (c.participants?.length || 0), 0)}
                 </p>
-                <p className="text-sm text-muted-foreground">Rappers in Cyphers</p>
+                <p className="text-sm text-dark-400">Rappers in Cyphers</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Mic className="h-8 w-8 text-purple-500" />
               <div>
                 <p className="text-2xl font-bold">12,456</p>
-                <p className="text-sm text-muted-foreground">Bars Dropped Today</p>
+                <p className="text-sm text-dark-400">Bars Dropped Today</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Clock className="h-8 w-8 text-yellow-500" />
               <div>
                 <p className="text-2xl font-bold">{scheduledCyphers.length}</p>
-                <p className="text-sm text-muted-foreground">Scheduled</p>
+                <p className="text-sm text-dark-400">Scheduled</p>
               </div>
             </div>
           </CardContent>
@@ -154,13 +149,13 @@ export default function CypherPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {activeCyphers.length === 0 ? (
             <Card className="col-span-full">
-              <CardContent className="py-8 text-center text-muted-foreground">
+              <CardContent className="py-8 text-center text-dark-400">
                 No active cyphers right now. Start one and invite your crew!
               </CardContent>
             </Card>
           ) : (
             activeCyphers.map((cypher) => (
-              <Card key={cypher.id} className="border-green-500/50 overflow-hidden">
+              <Card key={cypher.id} variant="bordered" className="border-green-500/50 overflow-hidden">
                 <div className="h-2 bg-gradient-to-r from-green-500 via-yellow-500 to-red-500" />
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -168,7 +163,7 @@ export default function CypherPage() {
                       <Radio className="h-5 w-5 text-green-500 animate-pulse" />
                       {cypher.name}
                     </CardTitle>
-                    <Badge className="bg-green-500">LIVE</Badge>
+                    <span className="px-2 py-1 rounded text-xs font-medium bg-green-500 text-white">LIVE</span>
                   </div>
                   <CardDescription className="flex items-center gap-2">
                     <Music className="h-4 w-4" />
@@ -179,7 +174,7 @@ export default function CypherPage() {
                   <div className="space-y-4">
                     {/* Participants */}
                     <div>
-                      <p className="text-sm text-muted-foreground mb-2">In the Cypher:</p>
+                      <p className="text-sm text-dark-400 mb-2">In the Cypher:</p>
                       <div className="flex flex-wrap gap-2">
                         {cypher.participants?.map((participant) => (
                           <div
@@ -187,13 +182,12 @@ export default function CypherPage() {
                             className={`flex items-center gap-2 p-2 rounded-lg ${
                               cypher.current_turn_user_id === participant.user_id
                                 ? 'bg-green-500/20 border border-green-500'
-                                : 'bg-muted'
+                                : 'bg-dark-700'
                             }`}
                           >
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={participant.avatar_url} />
-                              <AvatarFallback>{participant.username[0]}</AvatarFallback>
-                            </Avatar>
+                            <div className="h-6 w-6 rounded-full bg-dark-600 flex items-center justify-center text-xs font-bold">
+                              {participant.username[0]}
+                            </div>
                             <span className="text-sm">{participant.username}</span>
                             {cypher.current_turn_user_id === participant.user_id && (
                               <Mic className="h-4 w-4 text-green-500 animate-bounce" />
@@ -211,14 +205,14 @@ export default function CypherPage() {
 
                     <div className="flex gap-2">
                       <Button
-                        className="flex-1"
+                        fullWidth
                         onClick={() => joinCypher(cypher.id)}
                         disabled={(cypher.participants?.length || 0) >= cypher.max_participants}
                       >
                         Join Cypher
                       </Button>
-                      <Button variant="outline" className="gap-1">
-                        <Play className="h-4 w-4" />
+                      <Button variant="outline">
+                        <Play className="h-4 w-4 mr-1" />
                         Watch
                       </Button>
                     </div>
@@ -239,7 +233,7 @@ export default function CypherPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {scheduledCyphers.length === 0 ? (
             <Card className="col-span-full">
-              <CardContent className="py-8 text-center text-muted-foreground">
+              <CardContent className="py-8 text-center text-dark-400">
                 No scheduled cyphers. Schedule one for your crew!
               </CardContent>
             </Card>
@@ -249,7 +243,7 @@ export default function CypherPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>{cypher.name}</CardTitle>
-                    <Badge variant="outline">Scheduled</Badge>
+                    <span className="px-2 py-1 rounded text-xs border border-dark-500">Scheduled</span>
                   </div>
                   <CardDescription className="flex items-center gap-2">
                     <Music className="h-4 w-4" />
@@ -262,11 +256,11 @@ export default function CypherPage() {
                       <span>
                         {cypher.participants?.length || 0} / {cypher.max_participants} RSVP'd
                       </span>
-                      <span className="text-muted-foreground">
+                      <span className="text-dark-400">
                         Starts in 2 hours
                       </span>
                     </div>
-                    <Button className="w-full" variant="outline">
+                    <Button fullWidth variant="outline">
                       RSVP
                     </Button>
                   </div>
@@ -282,45 +276,45 @@ export default function CypherPage() {
         <h2 className="text-2xl font-semibold mb-6">How Cyphers Work</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-3">
                 <Users className="h-6 w-6 text-green-500" />
               </div>
               <h3 className="font-semibold mb-2">Join the Circle</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 Enter an open cypher or start your own with friends
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <div className="h-12 w-12 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-3">
                 <Music className="h-6 w-6 text-purple-500" />
               </div>
               <h3 className="font-semibold mb-2">Feel the Beat</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 The beat loops continuously. Everyone flows to the same rhythm
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <div className="h-12 w-12 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto mb-3">
                 <Mic className="h-6 w-6 text-yellow-500" />
               </div>
               <h3 className="font-semibold mb-2">Drop Your Bars</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 When it's your turn, freestyle for 16-32 bars then pass the mic
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-3">
                 <Radio className="h-6 w-6 text-blue-500" />
               </div>
               <h3 className="font-semibold mb-2">Keep It Going</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 No competition, just vibes. The cypher continues until everyone's done
               </p>
             </CardContent>
@@ -340,13 +334,13 @@ export default function CypherPage() {
             { name: 'UK Grime', bpm: 140 },
             { name: 'Jazz Hop', bpm: 88 }
           ].map((beat) => (
-            <Card key={beat.name} className="cursor-pointer hover:border-primary transition-colors">
-              <CardContent className="pt-6 text-center">
+            <Card key={beat.name} variant="interactive">
+              <CardContent className="text-center">
                 <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-3">
                   <Music className="h-6 w-6 text-white" />
                 </div>
                 <p className="font-medium text-sm">{beat.name}</p>
-                <p className="text-xs text-muted-foreground">{beat.bpm} BPM</p>
+                <p className="text-xs text-dark-400">{beat.bpm} BPM</p>
               </CardContent>
             </Card>
           ))}

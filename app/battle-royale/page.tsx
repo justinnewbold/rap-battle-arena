@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+import { supabase } from '@/lib/supabase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { Swords, Users, Trophy, Clock, Crown, Skull, Zap } from 'lucide-react'
 
 interface BattleRoyale {
@@ -30,9 +28,7 @@ interface BattleRoyale {
 export default function BattleRoyalePage() {
   const [activeRoyales, setActiveRoyales] = useState<BattleRoyale[]>([])
   const [upcomingRoyales, setUpcomingRoyales] = useState<BattleRoyale[]>([])
-  const [myRoyales, setMyRoyales] = useState<BattleRoyale[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
     loadBattleRoyales()
@@ -41,28 +37,17 @@ export default function BattleRoyalePage() {
   const loadBattleRoyales = async () => {
     setLoading(true)
     try {
-      // Load active battle royales
       const { data: active } = await supabase
         .from('battle_royales')
         .select('*')
         .eq('status', 'in_progress')
         .order('started_at', { ascending: false })
 
-      // Load upcoming battle royales
       const { data: upcoming } = await supabase
         .from('battle_royales')
         .select('*')
         .eq('status', 'waiting')
         .order('created_at', { ascending: true })
-
-      // Load user's battle royales
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: mine } = await supabase
-          .from('battle_royale_participants')
-          .select('battle_royale:battle_royales(*)')
-          .eq('user_id', user.id)
-      }
 
       setActiveRoyales(active || [])
       setUpcomingRoyales(upcoming || [])
@@ -85,15 +70,6 @@ export default function BattleRoyalePage() {
     loadBattleRoyales()
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'waiting': return 'bg-yellow-500'
-      case 'in_progress': return 'bg-green-500'
-      case 'completed': return 'bg-gray-500'
-      default: return 'bg-gray-500'
-    }
-  }
-
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="flex items-center justify-between mb-8">
@@ -102,12 +78,12 @@ export default function BattleRoyalePage() {
             <Crown className="h-10 w-10 text-yellow-500" />
             Battle Royale
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-dark-400 mt-2">
             Last rapper standing wins it all. Elimination style battles.
           </p>
         </div>
-        <Button size="lg" className="gap-2">
-          <Zap className="h-5 w-5" />
+        <Button size="lg">
+          <Zap className="h-5 w-5 mr-2" />
           Create Battle Royale
         </Button>
       </div>
@@ -115,45 +91,45 @@ export default function BattleRoyalePage() {
       {/* Stats Banner */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Swords className="h-8 w-8 text-red-500" />
               <div>
                 <p className="text-2xl font-bold">{activeRoyales.length}</p>
-                <p className="text-sm text-muted-foreground">Active Royales</p>
+                <p className="text-sm text-dark-400">Active Royales</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Users className="h-8 w-8 text-blue-500" />
               <div>
                 <p className="text-2xl font-bold">{upcomingRoyales.length}</p>
-                <p className="text-sm text-muted-foreground">Waiting to Start</p>
+                <p className="text-sm text-dark-400">Waiting to Start</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Trophy className="h-8 w-8 text-yellow-500" />
               <div>
                 <p className="text-2xl font-bold">5,000</p>
-                <p className="text-sm text-muted-foreground">Total Prize Pool</p>
+                <p className="text-sm text-dark-400">Total Prize Pool</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center gap-3">
               <Skull className="h-8 w-8 text-purple-500" />
               <div>
                 <p className="text-2xl font-bold">1,234</p>
-                <p className="text-sm text-muted-foreground">Total Eliminations</p>
+                <p className="text-sm text-dark-400">Total Eliminations</p>
               </div>
             </div>
           </CardContent>
@@ -169,17 +145,17 @@ export default function BattleRoyalePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {activeRoyales.length === 0 ? (
             <Card className="col-span-full">
-              <CardContent className="py-8 text-center text-muted-foreground">
+              <CardContent className="py-8 text-center text-dark-400">
                 No active battle royales right now. Join one below or create your own!
               </CardContent>
             </Card>
           ) : (
             activeRoyales.map((royale) => (
-              <Card key={royale.id} className="border-green-500/50">
+              <Card key={royale.id} variant="bordered" className="border-green-500/50">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>{royale.name}</CardTitle>
-                    <Badge className={getStatusColor(royale.status)}>LIVE</Badge>
+                    <span className="px-2 py-1 rounded text-xs font-medium bg-green-500 text-white">LIVE</span>
                   </div>
                   <CardDescription>
                     Round {royale.current_round} of {royale.total_rounds}
@@ -192,7 +168,12 @@ export default function BattleRoyalePage() {
                         <span>Progress</span>
                         <span>{Math.round((royale.current_round / royale.total_rounds) * 100)}%</span>
                       </div>
-                      <Progress value={(royale.current_round / royale.total_rounds) * 100} />
+                      <div className="h-2 bg-dark-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-fire-500 rounded-full"
+                          style={{ width: `${(royale.current_round / royale.total_rounds) * 100}%` }}
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-1">
@@ -204,7 +185,7 @@ export default function BattleRoyalePage() {
                         {royale.prize_pool} coins
                       </span>
                     </div>
-                    <Button className="w-full" variant="outline">
+                    <Button variant="outline" fullWidth>
                       Watch Live
                     </Button>
                   </div>
@@ -224,7 +205,7 @@ export default function BattleRoyalePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {upcomingRoyales.length === 0 ? (
             <Card className="col-span-full">
-              <CardContent className="py-8 text-center text-muted-foreground">
+              <CardContent className="py-8 text-center text-dark-400">
                 No upcoming battle royales. Be the first to create one!
               </CardContent>
             </Card>
@@ -234,7 +215,7 @@ export default function BattleRoyalePage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>{royale.name}</CardTitle>
-                    <Badge variant="outline">Waiting</Badge>
+                    <span className="px-2 py-1 rounded text-xs font-medium border border-dark-500">Waiting</span>
                   </div>
                   <CardDescription>
                     {royale.participants?.length || 0} / {royale.max_participants} participants
@@ -247,7 +228,12 @@ export default function BattleRoyalePage() {
                         <span>Filling up</span>
                         <span>{Math.round(((royale.participants?.length || 0) / royale.max_participants) * 100)}%</span>
                       </div>
-                      <Progress value={((royale.participants?.length || 0) / royale.max_participants) * 100} />
+                      <div className="h-2 bg-dark-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-fire-500 rounded-full"
+                          style={{ width: `${((royale.participants?.length || 0) / royale.max_participants) * 100}%` }}
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span>Entry: {royale.entry_fee} coins</span>
@@ -256,10 +242,7 @@ export default function BattleRoyalePage() {
                         {royale.prize_pool} coins
                       </span>
                     </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => joinBattleRoyale(royale.id)}
-                    >
+                    <Button fullWidth onClick={() => joinBattleRoyale(royale.id)}>
                       Join Battle Royale
                     </Button>
                   </div>
@@ -275,45 +258,45 @@ export default function BattleRoyalePage() {
         <h2 className="text-2xl font-semibold mb-6">How Battle Royale Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                <span className="text-xl font-bold">1</span>
+            <CardContent className="text-center">
+              <div className="h-12 w-12 rounded-full bg-fire-500/10 flex items-center justify-center mx-auto mb-3">
+                <span className="text-xl font-bold text-fire-500">1</span>
               </div>
               <h3 className="font-semibold mb-2">Join the Lobby</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 Pay the entry fee and wait for the lobby to fill up
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                <span className="text-xl font-bold">2</span>
+            <CardContent className="text-center">
+              <div className="h-12 w-12 rounded-full bg-fire-500/10 flex items-center justify-center mx-auto mb-3">
+                <span className="text-xl font-bold text-fire-500">2</span>
               </div>
               <h3 className="font-semibold mb-2">Random Matchups</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 Get paired with random opponents each round
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                <span className="text-xl font-bold">3</span>
+            <CardContent className="text-center">
+              <div className="h-12 w-12 rounded-full bg-fire-500/10 flex items-center justify-center mx-auto mb-3">
+                <span className="text-xl font-bold text-fire-500">3</span>
               </div>
               <h3 className="font-semibold mb-2">Win or Go Home</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 Lose a battle and you're eliminated from the tournament
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                <span className="text-xl font-bold">4</span>
+            <CardContent className="text-center">
+              <div className="h-12 w-12 rounded-full bg-fire-500/10 flex items-center justify-center mx-auto mb-3">
+                <span className="text-xl font-bold text-fire-500">4</span>
               </div>
               <h3 className="font-semibold mb-2">Last One Standing</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 The final survivor takes home the entire prize pool
               </p>
             </CardContent>

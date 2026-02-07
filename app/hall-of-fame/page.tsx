@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { supabase } from '@/lib/supabase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { Trophy, Star, Crown, Medal, Play, Calendar, Users, Flame } from 'lucide-react'
 
 interface HallOfFameEntry {
@@ -47,7 +45,6 @@ export default function HallOfFamePage() {
   const [legends, setLegends] = useState<Legend[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
 
   useEffect(() => {
     loadHallOfFame()
@@ -56,7 +53,6 @@ export default function HallOfFamePage() {
   const loadHallOfFame = async () => {
     setLoading(true)
     try {
-      // Load legendary battles
       let query = supabase
         .from('hall_of_fame')
         .select('*')
@@ -68,7 +64,6 @@ export default function HallOfFamePage() {
 
       const { data: battles } = await query.limit(20)
 
-      // Load legends
       const { data: legendsData } = await supabase
         .from('legends')
         .select('*')
@@ -116,7 +111,7 @@ export default function HallOfFamePage() {
           <h1 className="text-5xl font-bold">Hall of Fame</h1>
           <Trophy className="h-12 w-12 text-yellow-500" />
         </div>
-        <p className="text-xl text-muted-foreground">
+        <p className="text-xl text-dark-400">
           Where legends are immortalized. The greatest battles and performers in history.
         </p>
       </div>
@@ -130,7 +125,7 @@ export default function HallOfFamePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {legends.length === 0 ? (
             <Card className="col-span-full">
-              <CardContent className="py-8 text-center text-muted-foreground">
+              <CardContent className="py-8 text-center text-dark-400">
                 No legends inducted yet. Great battles await!
               </CardContent>
             </Card>
@@ -151,27 +146,26 @@ export default function HallOfFamePage() {
                     <span className="text-white font-bold">{index + 1}</span>
                   </div>
                 )}
-                <CardContent className="pt-6 text-center">
-                  <Avatar className="h-20 w-20 mx-auto mb-3 ring-4 ring-offset-2 ring-offset-background ring-yellow-500/50">
-                    <AvatarImage src={legend.avatar_url} />
-                    <AvatarFallback className="text-2xl">{legend.username[0]}</AvatarFallback>
-                  </Avatar>
+                <CardContent className="text-center">
+                  <div className="h-20 w-20 rounded-full bg-dark-600 ring-4 ring-offset-2 ring-offset-dark-800 ring-yellow-500/50 mx-auto mb-3 flex items-center justify-center text-2xl font-bold">
+                    {legend.username[0]}
+                  </div>
                   <h3 className="font-bold text-lg">{legend.username}</h3>
                   <div className="flex flex-wrap gap-1 justify-center mt-2">
                     {legend.titles?.slice(0, 2).map((title) => (
-                      <Badge key={title} variant="secondary" className="text-xs">
+                      <span key={title} className="px-2 py-0.5 rounded text-xs bg-dark-700">
                         {title}
-                      </Badge>
+                      </span>
                     ))}
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <p className="font-bold text-xl">{legend.total_wins}</p>
-                      <p className="text-muted-foreground">Wins</p>
+                      <p className="text-dark-400">Wins</p>
                     </div>
                     <div>
                       <p className="font-bold text-xl">{legend.hall_of_fame_entries}</p>
-                      <p className="text-muted-foreground">HOF Entries</p>
+                      <p className="text-dark-400">HOF Entries</p>
                     </div>
                   </div>
                 </CardContent>
@@ -188,11 +182,10 @@ export default function HallOfFamePage() {
           return (
             <Button
               key={category.id}
-              variant={selectedCategory === category.id ? 'default' : 'outline'}
-              className="gap-2"
+              variant={selectedCategory === category.id ? 'primary' : 'outline'}
               onClick={() => setSelectedCategory(category.id)}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4 mr-2" />
               {category.name}
             </Button>
           )
@@ -205,7 +198,7 @@ export default function HallOfFamePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {legendaryBattles.length === 0 ? (
             <Card className="col-span-full">
-              <CardContent className="py-12 text-center text-muted-foreground">
+              <CardContent className="py-12 text-center text-dark-400">
                 No legendary moments yet in this category. Keep battling!
               </CardContent>
             </Card>
@@ -218,14 +211,16 @@ export default function HallOfFamePage() {
                     <div className="absolute inset-0 bg-black/50" />
                     <div className="relative z-10 text-center">
                       <CategoryIcon className={`h-16 w-16 mx-auto mb-2 ${getCategoryColor(entry.category)}`} />
-                      <Badge className="bg-black/50">{entry.category.replace(/_/g, ' ').toUpperCase()}</Badge>
+                      <span className="px-2 py-1 rounded text-xs bg-black/50">
+                        {entry.category.replace(/_/g, ' ').toUpperCase()}
+                      </span>
                     </div>
                     <Button
                       size="lg"
-                      className="absolute bottom-4 right-4 gap-2"
                       variant="secondary"
+                      className="absolute bottom-4 right-4"
                     >
-                      <Play className="h-5 w-5" />
+                      <Play className="h-5 w-5 mr-2" />
                       Watch
                     </Button>
                   </div>
@@ -239,21 +234,19 @@ export default function HallOfFamePage() {
                         {entry.battle && (
                           <>
                             <div className="flex items-center gap-2">
-                              <Avatar>
-                                <AvatarImage src={entry.battle.winner?.avatar_url} />
-                                <AvatarFallback>{entry.battle.winner?.username?.[0]}</AvatarFallback>
-                              </Avatar>
+                              <div className="h-8 w-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
+                                {entry.battle.winner?.username?.[0]}
+                              </div>
                               <div>
                                 <p className="font-medium text-sm">{entry.battle.winner?.username}</p>
-                                <Badge variant="outline" className="text-xs text-green-500">Winner</Badge>
+                                <span className="px-2 py-0.5 rounded text-xs border border-green-500 text-green-500">Winner</span>
                               </div>
                             </div>
-                            <span className="text-muted-foreground">vs</span>
+                            <span className="text-dark-400">vs</span>
                             <div className="flex items-center gap-2">
-                              <Avatar>
-                                <AvatarImage src={entry.battle.loser?.avatar_url} />
-                                <AvatarFallback>{entry.battle.loser?.username?.[0]}</AvatarFallback>
-                              </Avatar>
+                              <div className="h-8 w-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
+                                {entry.battle.loser?.username?.[0]}
+                              </div>
                               <div>
                                 <p className="font-medium text-sm">{entry.battle.loser?.username}</p>
                               </div>
@@ -261,7 +254,7 @@ export default function HallOfFamePage() {
                           </>
                         )}
                       </div>
-                      <div className="text-right text-sm text-muted-foreground">
+                      <div className="text-right text-sm text-dark-400">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
                           {new Date(entry.inducted_at).toLocaleDateString()}
@@ -286,12 +279,12 @@ export default function HallOfFamePage() {
           <CardContent className="py-8 text-center">
             <Trophy className="h-16 w-16 mx-auto mb-4 text-yellow-500" />
             <h3 className="text-2xl font-bold mb-2">Nominate a Battle</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            <p className="text-dark-400 mb-6 max-w-md mx-auto">
               Know a battle that deserves to be immortalized? Nominate it for the Hall of Fame.
               Community votes determine which battles make history.
             </p>
-            <Button size="lg" className="gap-2">
-              <Star className="h-5 w-5" />
+            <Button size="lg">
+              <Star className="h-5 w-5 mr-2" />
               Submit Nomination
             </Button>
           </CardContent>
@@ -302,29 +295,29 @@ export default function HallOfFamePage() {
       <section className="mt-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <p className="text-4xl font-bold text-yellow-500">{legends.length}</p>
-              <p className="text-muted-foreground">Inducted Legends</p>
+              <p className="text-dark-400">Inducted Legends</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <p className="text-4xl font-bold text-purple-500">{legendaryBattles.length}</p>
-              <p className="text-muted-foreground">Legendary Battles</p>
+              <p className="text-dark-400">Legendary Battles</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <p className="text-4xl font-bold text-green-500">
                 {legendaryBattles.reduce((sum, b) => sum + b.view_count, 0).toLocaleString()}
               </p>
-              <p className="text-muted-foreground">Total Views</p>
+              <p className="text-dark-400">Total Views</p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <p className="text-4xl font-bold text-blue-500">2024</p>
-              <p className="text-muted-foreground">Since</p>
+              <p className="text-dark-400">Since</p>
             </CardContent>
           </Card>
         </div>

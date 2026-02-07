@@ -1,12 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Progress } from '@/components/ui/progress'
+import { supabase } from '@/lib/supabase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Button } from '@/components/ui'
 import {
   BarChart3,
   TrendingUp,
@@ -57,7 +54,7 @@ export default function AnalyticsPage() {
   const [recentBattles, setRecentBattles] = useState<RecentBattle[]>([])
   const [wordCloud, setWordCloud] = useState<Array<{ word: string; count: number }>>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [activeTab, setActiveTab] = useState('skills')
 
   useEffect(() => {
     loadAnalytics()
@@ -145,10 +142,10 @@ export default function AnalyticsPage() {
     return (
       <div className="container mx-auto py-8 px-4">
         <div className="animate-pulse space-y-4">
-          <div className="h-12 w-64 bg-muted rounded" />
+          <div className="h-12 w-64 bg-dark-700 rounded" />
           <div className="grid grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-32 bg-muted rounded" />
+              <div key={i} className="h-32 bg-dark-700 rounded" />
             ))}
           </div>
         </div>
@@ -166,12 +163,12 @@ export default function AnalyticsPage() {
             <BarChart3 className="h-10 w-10 text-blue-500" />
             Performance Analytics
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-dark-400 mt-2">
             Deep insights into your battle performance and growth
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
-          <TrendingUp className="h-4 w-4" />
+        <Button variant="outline">
+          <TrendingUp className="h-4 w-4 mr-2" />
           Export Report
         </Button>
       </div>
@@ -179,22 +176,22 @@ export default function AnalyticsPage() {
       {/* Overview Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-3xl font-bold">{analytics.totalBattles}</p>
-                <p className="text-sm text-muted-foreground">Total Battles</p>
+                <p className="text-sm text-dark-400">Total Battles</p>
               </div>
               <Target className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-3xl font-bold text-green-500">{analytics.wins}</p>
-                <p className="text-sm text-muted-foreground">Wins</p>
+                <p className="text-sm text-dark-400">Wins</p>
               </div>
               <div className="text-right">
                 <p className="text-lg font-semibold">
@@ -202,17 +199,17 @@ export default function AnalyticsPage() {
                     ? Math.round((analytics.wins / analytics.totalBattles) * 100)
                     : 0}%
                 </p>
-                <p className="text-xs text-muted-foreground">Win Rate</p>
+                <p className="text-xs text-dark-400">Win Rate</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-3xl font-bold">{analytics.currentRating}</p>
-                <p className="text-sm text-muted-foreground">Current Rating</p>
+                <p className="text-sm text-dark-400">Current Rating</p>
               </div>
               <div className="flex items-center gap-1">
                 {analytics.recentTrend === 'up' && <ArrowUp className="h-6 w-6 text-green-500" />}
@@ -220,239 +217,259 @@ export default function AnalyticsPage() {
                 {analytics.recentTrend === 'stable' && <Minus className="h-6 w-6 text-gray-500" />}
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-dark-400 mt-2">
               Peak: {analytics.peakRating}
             </p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-3xl font-bold">{analytics.winStreak}</p>
-                <p className="text-sm text-muted-foreground">Current Streak</p>
+                <p className="text-sm text-dark-400">Current Streak</p>
               </div>
               <Zap className="h-8 w-8 text-yellow-500" />
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-dark-400 mt-2">
               Best: {analytics.bestWinStreak}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="skills" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="skills">Skill Breakdown</TabsTrigger>
-          <TabsTrigger value="history">Battle History</TabsTrigger>
-          <TabsTrigger value="vocabulary">Vocabulary</TabsTrigger>
-          <TabsTrigger value="insights">AI Insights</TabsTrigger>
-        </TabsList>
+      {/* Tab Navigation */}
+      <div className="flex gap-2 mb-6 border-b border-dark-700">
+        {['skills', 'history', 'vocabulary', 'insights'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 font-medium capitalize transition-colors ${
+              activeTab === tab
+                ? 'text-fire-500 border-b-2 border-fire-500'
+                : 'text-dark-400 hover:text-white'
+            }`}
+          >
+            {tab === 'skills' ? 'Skill Breakdown' :
+             tab === 'history' ? 'Battle History' :
+             tab === 'vocabulary' ? 'Vocabulary' : 'AI Insights'}
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value="skills">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
-                Skill Analysis
-              </CardTitle>
-              <CardDescription>
-                Your performance across different battle categories
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {skills.map((skill) => (
-                  <div key={skill.category}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-medium">{skill.category}</p>
-                        <p className="text-xs text-muted-foreground">{skill.description}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold">{skill.score}</span>
-                        <div className="flex items-center gap-1 text-sm">
-                          {getTrendIcon(skill.trend)}
-                          <span className={skill.trend > 0 ? 'text-green-500' : skill.trend < 0 ? 'text-red-500' : 'text-gray-500'}>
-                            {skill.trend > 0 ? '+' : ''}{skill.trend}
-                          </span>
-                        </div>
+      {/* Tab Content */}
+      {activeTab === 'skills' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              Skill Analysis
+            </CardTitle>
+            <CardDescription>
+              Your performance across different battle categories
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              {skills.map((skill) => (
+                <div key={skill.category}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium">{skill.category}</p>
+                      <p className="text-xs text-dark-400">{skill.description}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">{skill.score}</span>
+                      <div className="flex items-center gap-1 text-sm">
+                        {getTrendIcon(skill.trend)}
+                        <span className={skill.trend > 0 ? 'text-green-500' : skill.trend < 0 ? 'text-red-500' : 'text-gray-500'}>
+                          {skill.trend > 0 ? '+' : ''}{skill.trend}
+                        </span>
                       </div>
                     </div>
-                    <Progress value={skill.score} className="h-2" />
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  <div className="h-2 bg-dark-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-fire-500 rounded-full transition-all"
+                      style={{ width: `${skill.score}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        <TabsContent value="history">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Recent Battles
-              </CardTitle>
-              <CardDescription>
-                Your last 5 battle performances
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentBattles.map((battle) => (
-                  <div
-                    key={battle.id}
-                    className="flex items-center justify-between p-4 rounded-lg border"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`h-10 w-10 rounded-full flex items-center justify-center
-                        ${battle.result === 'win' ? 'bg-green-500/10' : 'bg-red-500/10'}`}
-                      >
-                        {battle.result === 'win' ? (
-                          <Award className="h-5 w-5 text-green-500" />
-                        ) : (
-                          <Target className="h-5 w-5 text-red-500" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium">vs {battle.opponent}</p>
-                        <p className="text-sm text-muted-foreground">{battle.date}</p>
-                      </div>
+      {activeTab === 'history' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Recent Battles
+            </CardTitle>
+            <CardDescription>
+              Your last 5 battle performances
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentBattles.map((battle) => (
+                <div
+                  key={battle.id}
+                  className="flex items-center justify-between p-4 rounded-lg border border-dark-700"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center
+                      ${battle.result === 'win' ? 'bg-green-500/10' : 'bg-red-500/10'}`}
+                    >
+                      {battle.result === 'win' ? (
+                        <Award className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <Target className="h-5 w-5 text-red-500" />
+                      )}
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="font-bold">{battle.score.toFixed(1)}</p>
-                        <p className="text-xs text-muted-foreground">Score</p>
-                      </div>
-                      <Badge variant={battle.result === 'win' ? 'default' : 'destructive'}>
-                        {battle.result.toUpperCase()}
-                      </Badge>
+                    <div>
+                      <p className="font-medium">vs {battle.opponent}</p>
+                      <p className="text-sm text-dark-400">{battle.date}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-              <Button variant="outline" className="w-full mt-4">
-                View All Battles
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="font-bold">{battle.score.toFixed(1)}</p>
+                      <p className="text-xs text-dark-400">Score</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      battle.result === 'win'
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-red-500/20 text-red-400'
+                    }`}>
+                      {battle.result.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button variant="outline" fullWidth className="mt-4">
+              View All Battles
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
-        <TabsContent value="vocabulary">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Word Cloud
-              </CardTitle>
-              <CardDescription>
-                Your most used words and phrases in battles
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-3 justify-center p-8 min-h-[200px]">
-                {wordCloud.map((item) => (
-                  <span
-                    key={item.word}
-                    className="cursor-default hover:text-primary transition-colors"
-                    style={{
-                      fontSize: `${getWordSize(item.count, maxWordCount)}px`,
-                      opacity: 0.5 + ((item.count / maxWordCount) * 0.5)
-                    }}
-                  >
-                    {item.word}
-                  </span>
-                ))}
-              </div>
-              <div className="border-t pt-4 mt-4">
-                <h4 className="font-medium mb-3">Vocabulary Stats</h4>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <p className="text-2xl font-bold">{analytics.totalBarsDropped}</p>
-                    <p className="text-sm text-muted-foreground">Total Bars</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">847</p>
-                    <p className="text-sm text-muted-foreground">Unique Words</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">12.3</p>
-                    <p className="text-sm text-muted-foreground">Avg Words/Bar</p>
-                  </div>
+      {activeTab === 'vocabulary' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Word Cloud
+            </CardTitle>
+            <CardDescription>
+              Your most used words and phrases in battles
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3 justify-center p-8 min-h-[200px]">
+              {wordCloud.map((item) => (
+                <span
+                  key={item.word}
+                  className="cursor-default hover:text-fire-500 transition-colors"
+                  style={{
+                    fontSize: `${getWordSize(item.count, maxWordCount)}px`,
+                    opacity: 0.5 + ((item.count / maxWordCount) * 0.5)
+                  }}
+                >
+                  {item.word}
+                </span>
+              ))}
+            </div>
+            <div className="border-t border-dark-700 pt-4 mt-4">
+              <h4 className="font-medium mb-3">Vocabulary Stats</h4>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold">{analytics.totalBarsDropped}</p>
+                  <p className="text-sm text-dark-400">Total Bars</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">847</p>
+                  <p className="text-sm text-dark-400">Unique Words</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">12.3</p>
+                  <p className="text-sm text-dark-400">Avg Words/Bar</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        <TabsContent value="insights">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="h-5 w-5" />
-                AI-Powered Insights
-              </CardTitle>
-              <CardDescription>
-                Personalized recommendations based on your performance
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <h4 className="font-medium text-green-500 mb-2">Strengths</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    <li>Excellent battle IQ - you read opponents well and adapt quickly</li>
-                    <li>Strong flow control with consistent delivery timing</li>
-                    <li>High crowd engagement scores in competitive matches</li>
-                  </ul>
-                </div>
-                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                  <h4 className="font-medium text-yellow-500 mb-2">Areas to Improve</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    <li>Freestyle ability could use more practice - consider daily exercises</li>
-                    <li>Wordplay complexity is good but could be more consistent</li>
-                    <li>Some battles show energy dips in round 2 - work on stamina</li>
-                  </ul>
-                </div>
-                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <h4 className="font-medium text-blue-500 mb-2">Recommended Training</h4>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    <li>Practice 5-minute freestyle sessions daily to improve improvisation</li>
-                    <li>Study battles from top-rated freestylers for technique inspiration</li>
-                    <li>Focus on building a larger vocabulary of rhyme schemes</li>
-                  </ul>
-                </div>
+      {activeTab === 'insights' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              AI-Powered Insights
+            </CardTitle>
+            <CardDescription>
+              Personalized recommendations based on your performance
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                <h4 className="font-medium text-green-500 mb-2">Strengths</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-dark-300">
+                  <li>Excellent battle IQ - you read opponents well and adapt quickly</li>
+                  <li>Strong flow control with consistent delivery timing</li>
+                  <li>High crowd engagement scores in competitive matches</li>
+                </ul>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                <h4 className="font-medium text-yellow-500 mb-2">Areas to Improve</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-dark-300">
+                  <li>Freestyle ability could use more practice - consider daily exercises</li>
+                  <li>Wordplay complexity is good but could be more consistent</li>
+                  <li>Some battles show energy dips in round 2 - work on stamina</li>
+                </ul>
+              </div>
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <h4 className="font-medium text-blue-500 mb-2">Recommended Training</h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-dark-300">
+                  <li>Practice 5-minute freestyle sessions daily to improve improvisation</li>
+                  <li>Study battles from top-rated freestylers for technique inspiration</li>
+                  <li>Focus on building a larger vocabulary of rhyme schemes</li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Additional Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
         <Card>
-          <CardContent className="pt-6 text-center">
+          <CardContent className="text-center">
             <p className="text-2xl font-bold">{analytics.uniqueOpponents}</p>
-            <p className="text-sm text-muted-foreground">Unique Opponents</p>
+            <p className="text-sm text-dark-400">Unique Opponents</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6 text-center">
+          <CardContent className="text-center">
             <p className="text-2xl font-bold">{analytics.averageScore.toFixed(1)}</p>
-            <p className="text-sm text-muted-foreground">Avg Battle Score</p>
+            <p className="text-sm text-dark-400">Avg Battle Score</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6 text-center">
+          <CardContent className="text-center">
             <p className="text-2xl font-bold">{analytics.favoriteStyle}</p>
-            <p className="text-sm text-muted-foreground">Dominant Style</p>
+            <p className="text-sm text-dark-400">Dominant Style</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6 text-center">
+          <CardContent className="text-center">
             <p className="text-2xl font-bold">23</p>
-            <p className="text-sm text-muted-foreground">Days Active</p>
+            <p className="text-sm text-dark-400">Days Active</p>
           </CardContent>
         </Card>
       </div>

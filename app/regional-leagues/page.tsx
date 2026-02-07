@@ -1,13 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Progress } from '@/components/ui/progress'
+import { supabase } from '@/lib/supabase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui'
+import { Button } from '@/components/ui'
 import {
   MapPin,
   Trophy,
@@ -16,7 +12,6 @@ import {
   Swords,
   Calendar,
   Star,
-  ChevronRight,
   Globe
 } from 'lucide-react'
 
@@ -70,9 +65,9 @@ export default function RegionalLeaguesPage() {
   const [selectedRegion, setSelectedRegion] = useState<string>('na')
   const [leagues, setLeagues] = useState<League[]>([])
   const [standings, setStandings] = useState<RegionalStanding[]>([])
-  const [userRegion, setUserRegion] = useState<string>('na')
+  const [userRegion] = useState<string>('na')
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [activeTab, setActiveTab] = useState('leagues')
 
   useEffect(() => {
     loadRegionalData()
@@ -81,14 +76,12 @@ export default function RegionalLeaguesPage() {
   const loadRegionalData = async () => {
     setLoading(true)
     try {
-      // Load leagues for selected region
       const { data: leaguesData } = await supabase
         .from('regional_leagues')
         .select('*')
         .eq('region', selectedRegion)
         .order('starts_at', { ascending: true })
 
-      // Load standings
       const { data: standingsData } = await supabase
         .from('regional_standings')
         .select('*')
@@ -125,14 +118,14 @@ export default function RegionalLeaguesPage() {
             <Globe className="h-10 w-10 text-blue-500" />
             Regional Leagues
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-dark-400 mt-2">
             Compete in your region and represent your area
           </p>
         </div>
-        <Badge variant="outline" className="text-lg px-4 py-2">
-          <MapPin className="h-4 w-4 mr-2" />
+        <span className="px-4 py-2 rounded text-lg border border-dark-500 flex items-center gap-2">
+          <MapPin className="h-4 w-4" />
           Your Region: {REGIONS.find(r => r.id === userRegion)?.code}
-        </Badge>
+        </span>
       </div>
 
       {/* Region Selector */}
@@ -140,15 +133,14 @@ export default function RegionalLeaguesPage() {
         {REGIONS.map((region) => (
           <Card
             key={region.id}
-            className={`cursor-pointer transition-all hover:border-primary ${
-              selectedRegion === region.id ? 'border-primary bg-primary/5' : ''
-            }`}
+            variant={selectedRegion === region.id ? 'bordered' : 'interactive'}
+            className={`cursor-pointer ${selectedRegion === region.id ? 'border-fire-500 bg-fire-500/5' : ''}`}
             onClick={() => setSelectedRegion(region.id)}
           >
-            <CardContent className="pt-4 text-center">
+            <CardContent className="text-center">
               <span className="text-3xl">{region.flag}</span>
               <p className="font-semibold mt-2">{region.code}</p>
-              <p className="text-xs text-muted-foreground">{region.name}</p>
+              <p className="text-xs text-dark-400">{region.name}</p>
               <p className="text-xs mt-1">{region.total_battlers.toLocaleString()} battlers</p>
             </CardContent>
           </Card>
@@ -173,7 +165,7 @@ export default function RegionalLeaguesPage() {
                 <div className="flex items-center gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
                   <Crown className="h-8 w-8 text-yellow-500" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Regional Champion</p>
+                    <p className="text-xs text-dark-400">Regional Champion</p>
                     <p className="font-bold">{currentRegion.champion.username}</p>
                     <p className="text-xs text-yellow-500">{currentRegion.champion.wins} wins</p>
                   </div>
@@ -184,203 +176,222 @@ export default function RegionalLeaguesPage() {
         </Card>
       )}
 
-      <Tabs defaultValue="leagues" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="leagues">Active Leagues</TabsTrigger>
-          <TabsTrigger value="standings">Regional Standings</TabsTrigger>
-          <TabsTrigger value="qualifiers">Qualifiers</TabsTrigger>
-        </TabsList>
+      {/* Tab Navigation */}
+      <div className="flex gap-2 mb-6 border-b border-dark-700">
+        {['leagues', 'standings', 'qualifiers'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 font-medium capitalize transition-colors ${
+              activeTab === tab
+                ? 'text-fire-500 border-b-2 border-fire-500'
+                : 'text-dark-400 hover:text-white'
+            }`}
+          >
+            {tab === 'leagues' ? 'Active Leagues' :
+             tab === 'standings' ? 'Regional Standings' : 'Qualifiers'}
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value="leagues">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {leagues.length === 0 ? (
-              <Card className="col-span-full">
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  No active leagues in this region. Check back soon!
+      {/* Leagues Tab */}
+      {activeTab === 'leagues' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {leagues.length === 0 ? (
+            <Card className="col-span-full">
+              <CardContent className="py-8 text-center text-dark-400">
+                No active leagues in this region. Check back soon!
+              </CardContent>
+            </Card>
+          ) : (
+            leagues.map((league) => (
+              <Card key={league.id}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`h-10 w-10 rounded-full ${getTierColor(league.tier)} flex items-center justify-center`}>
+                        <Trophy className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{league.name}</CardTitle>
+                        <CardDescription className="capitalize">{league.tier} Tier</CardDescription>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      league.status === 'active' ? 'bg-green-500' : 'border border-dark-500'
+                    } text-white`}>
+                      {league.status}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Participants</span>
+                        <span>{league.participants} / {league.max_participants}</span>
+                      </div>
+                      <div className="h-2 bg-dark-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-fire-500 rounded-full"
+                          style={{ width: `${(league.participants / league.max_participants) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-1">
+                        <Trophy className="h-4 w-4 text-yellow-500" />
+                        {league.prize_pool} coins
+                      </div>
+                      <div className="flex items-center gap-1 text-dark-400">
+                        <Calendar className="h-4 w-4" />
+                        {new Date(league.starts_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <Button fullWidth>
+                      {league.status === 'upcoming' ? 'Register' : 'View Details'}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
-            ) : (
-              leagues.map((league) => (
-                <Card key={league.id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-10 w-10 rounded-full ${getTierColor(league.tier)} flex items-center justify-center`}>
-                          <Trophy className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle className="text-lg">{league.name}</CardTitle>
-                          <CardDescription className="capitalize">{league.tier} Tier</CardDescription>
-                        </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Standings Tab */}
+      {activeTab === 'standings' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 text-yellow-500" />
+              {currentRegion?.name} Standings
+            </CardTitle>
+            <CardDescription>
+              Top 25 battlers in the region
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {standings.length === 0 ? (
+                <p className="text-center text-dark-400 py-8">
+                  No standings data available yet.
+                </p>
+              ) : (
+                standings.map((standing) => (
+                  <div
+                    key={standing.user_id}
+                    className={`flex items-center justify-between p-3 rounded-lg hover:bg-dark-700/50 transition-colors ${
+                      standing.rank <= 3 ? 'bg-yellow-500/5' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold
+                        ${standing.rank === 1 ? 'bg-yellow-500 text-yellow-950' :
+                          standing.rank === 2 ? 'bg-gray-300 text-gray-700' :
+                          standing.rank === 3 ? 'bg-orange-400 text-orange-950' :
+                          'bg-dark-600 text-dark-300'}`}
+                      >
+                        {standing.rank}
                       </div>
-                      <Badge variant={league.status === 'active' ? 'default' : 'outline'}>
-                        {league.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
+                      <div className="h-8 w-8 rounded-full bg-dark-600 flex items-center justify-center font-bold">
+                        {standing.username[0]}
+                      </div>
                       <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span>Participants</span>
-                          <span>{league.participants} / {league.max_participants}</span>
-                        </div>
-                        <Progress value={(league.participants / league.max_participants) * 100} />
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-1">
-                          <Trophy className="h-4 w-4 text-yellow-500" />
-                          {league.prize_pool} coins
-                        </div>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Calendar className="h-4 w-4" />
-                          {new Date(league.starts_at).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <Button className="w-full">
-                        {league.status === 'upcoming' ? 'Register' : 'View Details'}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="standings">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-yellow-500" />
-                {currentRegion?.name} Standings
-              </CardTitle>
-              <CardDescription>
-                Top 25 battlers in the region
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {standings.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No standings data available yet.
-                  </p>
-                ) : (
-                  standings.map((standing) => (
-                    <div
-                      key={standing.user_id}
-                      className={`flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors ${
-                        standing.rank <= 3 ? 'bg-yellow-500/5' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold
-                          ${standing.rank === 1 ? 'bg-yellow-500 text-yellow-950' :
-                            standing.rank === 2 ? 'bg-gray-300 text-gray-700' :
-                            standing.rank === 3 ? 'bg-orange-400 text-orange-950' :
-                            'bg-muted text-muted-foreground'}`}
-                        >
-                          {standing.rank}
-                        </div>
-                        <Avatar>
-                          <AvatarImage src={standing.avatar_url} />
-                          <AvatarFallback>{standing.username[0]}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{standing.username}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {standing.wins}W - {standing.losses}L
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold">{standing.points.toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">points</p>
+                        <p className="font-medium">{standing.username}</p>
+                        <p className="text-xs text-dark-400">
+                          {standing.wins}W - {standing.losses}L
+                        </p>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    <div className="text-right">
+                      <p className="font-bold">{standing.points.toLocaleString()}</p>
+                      <p className="text-xs text-dark-400">points</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        <TabsContent value="qualifiers">
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Trophy className="h-16 w-16 mx-auto mb-4 text-yellow-500" />
-              <h3 className="text-2xl font-bold mb-2">World Championship Qualifiers</h3>
-              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Top performers from each region qualify for the annual World Championship.
-                Current qualification period ends in 45 days.
-              </p>
-              <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-6">
-                <div className="p-4 rounded-lg bg-muted">
-                  <p className="text-2xl font-bold text-yellow-500">1st</p>
-                  <p className="text-xs text-muted-foreground">Auto-qualify</p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted">
-                  <p className="text-2xl font-bold text-gray-400">2nd-5th</p>
-                  <p className="text-xs text-muted-foreground">Playoff spot</p>
-                </div>
-                <div className="p-4 rounded-lg bg-muted">
-                  <p className="text-2xl font-bold text-orange-400">6th-10th</p>
-                  <p className="text-xs text-muted-foreground">Wildcard</p>
-                </div>
+      {/* Qualifiers Tab */}
+      {activeTab === 'qualifiers' && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Trophy className="h-16 w-16 mx-auto mb-4 text-yellow-500" />
+            <h3 className="text-2xl font-bold mb-2">World Championship Qualifiers</h3>
+            <p className="text-dark-400 mb-6 max-w-md mx-auto">
+              Top performers from each region qualify for the annual World Championship.
+              Current qualification period ends in 45 days.
+            </p>
+            <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-6">
+              <div className="p-4 rounded-lg bg-dark-700">
+                <p className="text-2xl font-bold text-yellow-500">1st</p>
+                <p className="text-xs text-dark-400">Auto-qualify</p>
               </div>
-              <Button size="lg" className="gap-2">
-                <Swords className="h-5 w-5" />
-                View Qualification Rules
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <div className="p-4 rounded-lg bg-dark-700">
+                <p className="text-2xl font-bold text-gray-400">2nd-5th</p>
+                <p className="text-xs text-dark-400">Playoff spot</p>
+              </div>
+              <div className="p-4 rounded-lg bg-dark-700">
+                <p className="text-2xl font-bold text-orange-400">6th-10th</p>
+                <p className="text-xs text-dark-400">Wildcard</p>
+              </div>
+            </div>
+            <Button size="lg">
+              <Swords className="h-5 w-5 mr-2" />
+              View Qualification Rules
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* How Regional Leagues Work */}
       <section className="mt-12">
         <h2 className="text-2xl font-semibold mb-6">How Regional Leagues Work</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-3">
                 <MapPin className="h-6 w-6 text-blue-500" />
               </div>
               <h3 className="font-semibold mb-2">Join Your Region</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 Automatically assigned based on location, or choose your preferred region
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <div className="h-12 w-12 rounded-full bg-purple-500/10 flex items-center justify-center mx-auto mb-3">
                 <Swords className="h-6 w-6 text-purple-500" />
               </div>
               <h3 className="font-semibold mb-2">Battle & Earn Points</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 Win battles against regional opponents to climb the standings
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <div className="h-12 w-12 rounded-full bg-yellow-500/10 flex items-center justify-center mx-auto mb-3">
                 <Trophy className="h-6 w-6 text-yellow-500" />
               </div>
               <h3 className="font-semibold mb-2">Enter Leagues</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 Compete in tiered leagues from Bronze to Diamond for bigger prizes
               </p>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6 text-center">
+            <CardContent className="text-center">
               <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-3">
                 <Crown className="h-6 w-6 text-green-500" />
               </div>
               <h3 className="font-semibold mb-2">Qualify for Worlds</h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-dark-400">
                 Top regional performers qualify for the World Championship
               </p>
             </CardContent>
